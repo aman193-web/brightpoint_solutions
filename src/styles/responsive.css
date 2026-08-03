@@ -1,0 +1,266 @@
+/**
+ * Responsive utilities
+ *
+ * The feature screens are authored with inline styles (the existing house style),
+ * which cannot express media queries. These classes carry the breakpoint
+ * behaviour only — all colour / spacing values come from the same design tokens
+ * used inline (see theme.css).
+ *
+ * Breakpoints
+ *   1280px  right rails narrow
+ *   1100px  right rails stack under the main column
+ *   1024px  library three-pane stacks; project tab strip scrolls
+ *   768px   toolbars and metric strips wrap to multiple rows
+ */
+
+/* ── Horizontal scrollers (tab strips, chip rows) ───────────────────────────── */
+
+.bp-scroll-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.bp-scroll-x::-webkit-scrollbar {
+  height: 0;
+  display: none;
+}
+
+/* ── Content + right rail workspaces (Bid Builder, Proposal Center) ─────────── */
+
+.bp-workspace {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.bp-workspace > .bp-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.bp-workspace > .bp-rail {
+  width: 296px;
+  min-width: 296px;
+}
+
+@media (max-width: 1280px) {
+  .bp-workspace > .bp-rail {
+    width: 264px;
+    min-width: 264px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .bp-workspace {
+    flex-direction: column;
+  }
+  .bp-workspace > .bp-rail {
+    width: 100%;
+    min-width: 0;
+    position: static !important;
+  }
+  /* Screens whose summary rail should lead on narrow viewports opt in. */
+  .bp-workspace--rail-first > .bp-rail {
+    order: -1;
+  }
+}
+
+/* ── Library three-pane layout ──────────────────────────────────────────────── */
+
+@media (max-width: 1280px) {
+  .bp-lib-left {
+    width: 216px !important;
+    min-width: 216px !important;
+  }
+  .bp-lib-right {
+    width: 300px !important;
+    min-width: 300px !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .bp-lib {
+    flex-direction: column;
+    overflow-y: auto !important;
+  }
+  .bp-lib-left,
+  .bp-lib-centre,
+  .bp-lib-right {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .bp-lib-left,
+  .bp-lib-right {
+    overflow: visible !important;
+  }
+  .bp-lib-centre {
+    min-height: 420px;
+  }
+  .bp-lib-scroll {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  /* The category / item list would otherwise push the workspace off-screen. */
+  .bp-lib-left .bp-lib-scroll {
+    max-height: 240px !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* ── Toolbars / metric strips ───────────────────────────────────────────────── */
+
+.bp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bp-metrics {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .bp-metrics {
+    gap: 12px 18px;
+  }
+  .bp-toolbar-grow {
+    flex: 1 1 100% !important;
+    max-width: none !important;
+  }
+  .bp-hide-sm {
+    display: none !important;
+  }
+}
+
+/* ── Card grids (proposal recipients, summary tiles) ────────────────────────── */
+
+.bp-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+/* ── Wide data tables scroll inside their own container ─────────────────────── */
+
+.bp-table-scroll {
+  overflow: auto;
+  flex: 1;
+  position: relative;
+}
+
+/* ── Workbench: three co-equal columns ──────────────────────────────────────── */
+
+/*
+ * Below 1180px three columns stop fitting. Rather than hiding a pane behind a
+ * control — which would reintroduce the switch the workspace exists to remove —
+ * the layout reflows: assemblies + bench stay side by side, parts moves to a
+ * full-width band underneath. All three stay mounted at every width.
+ */
+@media (max-width: 1180px) {
+  /*
+   * Grid, not flex-wrap: in a fixed-height flex container a wrapped row gets
+   * clipped instead of sharing the height. The grid guarantees both rows exist.
+   */
+  .bp-wb {
+    display: grid !important;
+    grid-template-columns: 272px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) 264px;
+  }
+  .bp-wb > .bp-wb-pane:first-child {
+    width: auto !important;
+    min-width: 0 !important;
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .bp-wb > .bp-wb-bench {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .bp-wb > .bp-wb-pane:last-child {
+    width: auto !important;
+    min-width: 0 !important;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    border-left: none;
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+@media (max-width: 820px) {
+  .bp-wb {
+    display: flex !important;
+    flex-direction: column;
+    overflow: auto !important;
+  }
+  .bp-wb > .bp-wb-pane,
+  .bp-wb > .bp-wb-bench {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: none !important;
+    border-left: none;
+    border-right: none;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .bp-wb > .bp-wb-pane .bp-wb-scroll {
+    max-height: 260px;
+  }
+  .bp-wb > .bp-wb-bench {
+    min-height: 520px;
+  }
+}
+
+/* ── Proposal Center: live preview dock ─────────────────────────────────────── */
+
+@media (max-width: 1280px) {
+  .bp-preview-dock {
+    width: 360px !important;
+    min-width: 360px !important;
+  }
+}
+
+/* Below 1080px the editor needs the full width; the preview is reachable from
+   the Preview button, which docks it again when there is room. */
+@media (max-width: 1080px) {
+  .bp-preview-dock {
+    display: none !important;
+  }
+}
+
+/* ── Bid Builder summary header ─────────────────────────────────────────────── */
+
+/*
+ * The vertical rules separate the header's three zones. Once the header wraps
+ * onto a second row a rule ends up dangling at the end of a line, so they go.
+ */
+@media (max-width: 1180px) {
+  .bp-metrics-rule {
+    display: none !important;
+  }
+}
+
+/* ── Bid recap: nine columns need the full width ─────────────────────────────── */
+
+/*
+ * The recap gained per-category Overhead and Profit columns, which do not fit
+ * beside the markup panel on a laptop. Below 1400px the markup controls take
+ * their own row underneath so the Sell column is never the one clipped.
+ */
+@media (max-width: 1400px) {
+  .bp-recap-table {
+    flex-basis: 100% !important;
+  }
+  .bp-recap-markup {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-left: none !important;
+    border-top: 1px solid #374151;
+  }
+}
