@@ -1,12 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
   Send, Download, Plus, Trash2, ChevronDown, ChevronRight, GripVertical,
   X, FileText, FileSpreadsheet, Pencil, Mail, Phone, Building2, Info,
   ClipboardList, CheckCircle2, MinusCircle, Lightbulb, HelpCircle, Snowflake,
-  ArrowUp, ArrowDown, Copy, Sparkles, PanelRight, ShieldCheck, AlertTriangle,
+  ArrowUp, ArrowDown, Copy, Sparkles, PanelRight, ShieldCheck, AlertTriangle, EyeOff, Eye,
 } from 'lucide-react';
 import { ProjectHeader } from '../projects/ProjectHeader';
+import { PricedSummary, areasText, systemsText } from '../../lib/bidSummaries';
 import { ValidationReview } from '../common/ValidationReview';
 import { validate, ValidationIssue, isBlocked, countBySeverity } from '../../lib/validation';
 import { COMPANY_DEFAULTS, money as fmtMoney } from '../../lib/costing';
@@ -28,6 +29,15 @@ interface Recipient {
   primary?: boolean;
   accent: string;
   bg: string;
+  /**
+   * Which Bid Summaries this recipient is quoted, by id.
+   *
+   * Ids, not copies: two GCs bidding the same job routinely want different
+   * combinations — Base Bid + Fire Alarm for one, Base Bid + Service for another
+   * — and both must read the same priced summaries. Storing the numbers here
+   * instead would let a proposal go stale the moment a rate changed.
+   */
+  summaryIds: string[];
 }
 
 interface NarrativeSection {
@@ -49,7 +59,22 @@ interface BreakdownSection {
   included: boolean;
   /** Free-form label — the breakdown structure is never hard-coded. */
   kind: string;
+  /**
+   * Internal cost structure. Drives the bid total but never appears in the
+   * customer document under any setting — not as a price, not as a scope line.
+   * Set on the buckets that describe how the job is costed rather than what is
+   * being built: subcontract, job expenses, bond.
+   */
+  internal?: boolean;
 }
+
+/**
+ * Cost buckets that are how the job is *bought*, not what the client is buying.
+ *
+ * A client who can see the subcontract line and the job-expense line can price
+ * the job themselves — that is the whole reason a proposal is a lump sum.
+ */
+const INTERNAL_BUCKETS = ['subs', 'expenses', 'bond'];
 
 /**
  * Starting points for a new breakdown row. These are suggestions, not a fixed
@@ -77,41 +102,103 @@ const STATUS_CFG: Record<ProposalStatus, { label: string; color: string; bg: str
 };
 
 const INIT_RECIPIENTS: Recipient[] = [
-  { id: 'r1', company: 'BuildRight Construction', email: 'estimating@buildright.com', selected: true, primary: true, accent: '#16A34A', bg: '#F0FDF4' },
-  { id: 'r2', company: 'Summit Builders, Inc.',   email: 'bids@summitbuilders.com',   selected: true, accent: '#D97706', bg: '#FFFBEB' },
-  { id: 'r3', company: 'Pinnacle Contracting',    email: 'estimating@pinnacle.com',   selected: true, accent: '#1D4ED8', bg: '#EFF6FF' },
+  { id: 'r1', company: 'BuildRight Construction', email: 'estimating@buildright.com', selected: true, primary: true, accent: '#16A34A', bg: '#F0FDF4', summaryIds: ['sum-base'] },
+  { id: 'r2', company: 'Summit Builders, Inc.',   email: 'bids@summitbuilders.com',   selected: true, accent: '#D97706', bg: '#FFFBEB', summaryIds: ['sum-base'] },
+  { id: 'r3', company: 'Pinnacle Contracting',    email: 'estimating@pinnacle.com',   selected: true, accent: '#1D4ED8', bg: '#EFF6FF', summaryIds: ['sum-base'] },
 ];
+
+/**
+ * The Bid Summaries a recipient is being quoted.
+ *
+ * This replaces the earlier per-recipient Area/System picker. Area and System
+ * define what goes *inside* a Bid Summary in the Bid Builder; a proposal selects
+ * whole summaries, already priced. Collapsing those two layers is what made the
+ * old version wrong — it let a proposal invent a scope that no bid had costed.
+ */
+function SummaryPicker({ priced, selectedIds, onToggle }: {
+  priced: PricedSummary[];
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+}) {
+  if (priced.length === 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, padding: '11px 13px', border: '1px solid #FDE68A', background: '#FFFBEB', borderRadius: 9, fontSize: 11, color: '#92400E', lineHeight: '16px' }}>
+        <AlertTriangle size={12} color="#D97706" style={{ flexShrink: 0, marginTop: 1 }} />
+        No Bid Summaries published yet. Open Bid Builder → Overview to price at least one, then come
+        back — this proposal quotes summaries, not a scope it makes up on its own.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ border: '1px solid #E5E7EB', borderRadius: 9, overflow: 'hidden' }}>
+      {priced.map(({ summary: sum, totals }, i) => {
+        const on = selectedIds.includes(sum.id);
+        return (
+          <label
+            key={sum.id}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 11, padding: '11px 13px', cursor: 'pointer',
+              borderBottom: i < priced.length - 1 ? '1px solid #F3F4F6' : 'none',
+              background: on ? '#F8FBFF' : 'white',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={on}
+              aria-label={`Include ${sum.name} in this proposal`}
+              onChange={() => onToggle(sum.id)}
+              style={{ accentColor: '#2563EB', width: 15, height: 15, cursor: 'pointer', flexShrink: 0 }}
+            />
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: on ? '#111827' : '#374151' }}>
+                {sum.name}
+              </span>
+              <span style={{ display: 'block', fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                Areas: {areasText(sum.scope)} · Systems: {systemsText(sum.scope)}
+              </span>
+            </span>
+            {/* The customer-facing figure, and the only one on this row. */}
+            <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              {money(totals.sellPrice)}
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
 
 const INIT_NARRATIVE: NarrativeSection[] = [
   {
-    id: 'scope', index: '2', title: 'Scope of Work',
+    id: 'scope', index: '3', title: 'Scope of Work',
     blurb: 'The work to be performed under this proposal.',
     icon: <ClipboardList size={16} color="#2563EB" />,
-    body: 'Supply and install all electrical works for the Dollar Tree Store #1842 tenant fit-out as shown on drawings E-101 through E-301 Rev A, including lighting, power distribution, devices, data rough-in and fire alarm devices. All work to be carried out in accordance with the CEC, local amendments and the Division 26 specification.',
+    body: 'Supply and install all electrical works for the Dollar Tree Store #1842 tenant fit-out as shown on drawings E-101 through E-301 Rev A, including lighting, power distribution, devices, data rough-in and fire alarm devices. All work to be carried out in accordance with the NEC, local amendments and the Division 26 specification.',
   },
   {
-    id: 'includes', index: '3', title: 'Includes',
+    id: 'includes', index: '4', title: 'Includes',
     blurb: 'Materials, labor, equipment, and services included in our scope.',
     icon: <CheckCircle2 size={16} color="#16A34A" />,
     body: '• All material, labor, tools and equipment for the scope described above\n• Electrical permit and inspection fees\n• As-built markups and O&M documentation\n• 12-month workmanship warranty from substantial completion\n• Temporary lighting during construction hours',
   },
   {
-    id: 'excludes', index: '4', title: 'Excludes',
+    id: 'excludes', index: '5', title: 'Excludes',
     blurb: 'Items not included in our scope or pricing.',
     icon: <MinusCircle size={16} color="#DC2626" />,
     body: '• Fire alarm control panel and monitoring (by others)\n• Structured cabling termination and testing beyond patch panel\n• Cutting, patching and painting of finished surfaces\n• Overtime, shift or weekend premium labor\n• Utility company fees and service upgrades',
   },
   {
-    id: 've', index: '5', title: 'Value Engineering (VE) Options',
+    id: 've', index: '6', title: 'Value Engineering (VE) Options',
     blurb: 'Alternate products or methods to reduce cost or improve value.',
     icon: <Lightbulb size={16} color="#D97706" />,
     body: '• Substitute 0-10V dimming for the specified DALI controls — credit $1,850\n• Central inverter in place of integral emergency battery packs — credit $890\n• MC cable in lieu of EMT for branch circuits above ACT — credit $1,240',
   },
   {
-    id: 'terms', index: '6', title: 'Terms & Conditions',
+    id: 'terms', index: '7', title: 'Terms & Conditions',
     blurb: 'Terms, payment schedule, warranties, and other commercial conditions.',
     icon: <FileText size={16} color="#6B7280" />,
-    body: 'This proposal is valid for 30 days from the date of issue. Payment terms are Net 30 from invoice date. Progress billing: 30% on acceptance, 40% at rough-in completion, 30% on final inspection. Prices exclude GST and QST. Client to provide safe, unobstructed access to the work areas during regular business hours.',
+    body: 'This proposal is valid for 30 days from the date of issue. Payment terms are Net 30 from invoice date. Progress billing: 30% on acceptance, 40% at rough-in completion, 30% on final inspection. Prices exclude sales tax, shown separately on the pricing summary. Client to provide safe, unobstructed access to the work areas during regular business hours.',
   },
 ];
 
@@ -124,20 +211,21 @@ const INIT_NARRATIVE: NarrativeSection[] = [
 function breakdownFromBid(buckets: BidBucket[]): BreakdownSection[] {
   return buckets.map((b, i) => ({
     id: `b-${b.id}`,
-    index: `7.${i + 1}`,
+    index: `8.${i + 1}`,
     title: b.label,
     description: b.description,
     amount: b.amount,
     collapsed: true,
     included: true,
     kind: 'Scope',
+    internal: INTERNAL_BUCKETS.includes(b.id),
   }));
 }
 
+/** Static settings. The tax line is derived from the bid, so it is added later. */
 const PROPOSAL_SETTINGS = [
   { label: 'Valid for', value: '30 days' },
-  { label: 'Tax region', value: 'QC (GST + QST)' },
-  { label: 'Currency', value: 'CAD' },
+  { label: 'Currency', value: 'USD' },
   { label: 'Payment terms', value: 'Net 30' },
   { label: 'Labor basis', value: 'Open Shop (Non-Union)' },
 ];
@@ -233,13 +321,49 @@ function SendDialog({ recipients, total, onClose, onSend }: {
 
 // ─── PDF preview overlay ──────────────────────────────────────────────────────
 
-function PdfPreview({ sections, status, onClose, docked }: {
+function PdfPreview({ sections, status, onClose, docked, taxRate, bidTax, bidExTax, showScope, recipient, scopePrice }: {
   sections: BreakdownSection[]; status: ProposalStatus; onClose: () => void; docked?: boolean;
+  /**
+   * List the scope headings the proposal covers, unpriced. Off by default — the
+   * proposal is a lump sum, and a scope list is a deliberate act.
+   */
+  showScope: boolean;
+  /** Whose proposal this is. Recipients can be quoted different summaries. */
+  recipient?: { company: string; email: string; summaryIds: string[] };
+  /** The selected summaries and their totals, priced by the Bid Builder. */
+  scopePrice?: { rows: PricedSummary[]; exTax: number; tax: number; total: number };
+  taxRate: number;
+  /**
+   * The bid's own tax, in dollars, against the ex-tax total it was computed on.
+   * Tax is charged on goods only, so it is never `subtotal × rate` — quoting it
+   * that way would tax labor and subcontracted scope.
+   */
+  bidTax: number;
+  bidExTax: number;
 }) {
-  const included = sections.filter((s) => s.included);
-  const total = included.reduce((sum, sec) => sum + sec.amount, 0);
-  const gst = total * 0.05;
-  const qst = total * 0.09975;
+  const lines = sections.filter((s) => s.included);
+  /*
+   * Priced from the selected Bid Summaries whenever there are any. Only a
+   * proposal with no summary selected falls back to the internal breakdown
+   * total, which is the figure the estimator may have rounded by hand.
+   */
+  const summaryRows = scopePrice?.rows ?? [];
+  const scoped = summaryRows.length > 0;
+  const total = scoped ? scopePrice!.exTax : lines.reduce((sum, sec) => sum + sec.amount, 0);
+  /*
+   * Internal buckets are dropped even from the unpriced list. "Subcontractors"
+   * as a heading still tells a client the work is being sublet, and "Job
+   * expenses" is not scope at all — it is how the job is costed.
+   */
+  const scopeLines = lines.filter((sec) => !sec.internal);
+  /*
+   * The bid's tax, scaled if the estimator has edited the breakdown away from
+   * it. Recomputing from the rate would tax labor and subs, which are not
+   * taxable — the bid already worked out what is.
+   */
+  const tax = scoped
+    ? scopePrice!.tax
+    : (bidExTax > 0 ? bidTax * (total / bidExTax) : 0);
   const cfg = STATUS_CFG[status];
 
   return (
@@ -291,9 +415,12 @@ function PdfPreview({ sections, status, onClose, docked }: {
           <div style={{ marginBottom: 22, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Prepared for</div>
-              <div style={{ fontWeight: 600, color: '#111827', marginBottom: 2 }}>Dollar Tree Stores, Inc.</div>
+              <div style={{ fontWeight: 600, color: '#111827', marginBottom: 2 }}>
+                {recipient?.company ?? 'Dollar Tree Stores, Inc.'}
+              </div>
               <div style={{ fontSize: 11, color: '#6B7280', lineHeight: '17px' }}>
-                Attn: David Chen<br />500 Volvo Pkwy, Chesapeake VA 23320<br />david.chen@dollartree.com
+                Attn: David Chen<br />500 Volvo Pkwy, Chesapeake VA 23320<br />
+                {recipient?.email ?? 'david.chen@dollartree.com'}
               </div>
             </div>
             <div>
@@ -305,7 +432,35 @@ function PdfPreview({ sections, status, onClose, docked }: {
             </div>
           </div>
 
-          {/* Breakdown */}
+          {/*
+            The customer document quotes one number.
+            --------------------------------------
+            It used to print a priced line per bid cost bucket, which handed the
+            client the subcontract figure, the job-expense figure and enough of
+            the build-up to reverse the margin. The breakdown below still drives
+            the total and is still fully editable — it is simply internal. What
+            leaves the building is a lump sum, and, if the estimator asks for it,
+            the scope headings that sum is for. Never an amount beside them.
+          */}
+          {showScope && scopeLines.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>
+                Scope of work included
+              </div>
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: 6, overflow: 'hidden' }}>
+                {scopeLines.map((sec, i) => (
+                  <div
+                    key={sec.id}
+                    style={{ padding: '8px 10px', borderBottom: i < scopeLines.length - 1 ? '1px solid #F3F4F6' : 'none', background: i % 2 === 0 ? 'white' : '#FAFAFA' }}
+                  >
+                    <div style={{ fontWeight: 600, color: '#111827', marginBottom: 2 }}>{sec.title}</div>
+                    <div style={{ fontSize: 11, color: '#6B7280', lineHeight: '16px' }}>{sec.description}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '2px solid #E5E7EB' }}>
@@ -315,27 +470,50 @@ function PdfPreview({ sections, status, onClose, docked }: {
               </tr>
             </thead>
             <tbody>
-              {included.map((sec, i) => (
-                <tr key={sec.id} style={{ borderBottom: '1px solid #F3F4F6', background: i % 2 === 0 ? 'white' : '#FAFAFA' }}>
+              {/*
+                One lump sum per selected Bid Summary. Still no cost structure:
+                each row is a name, the scope it covers and a price. Material,
+                labor, subcontract, expenses, overhead and profit stay inside the
+                Bid Builder — see the summary rows' own totals there.
+              */}
+              {scoped ? summaryRows.map((r, i) => (
+                <tr key={r.summary.id} style={{ borderBottom: '1px solid #F3F4F6', background: i % 2 === 0 ? 'white' : '#FAFAFA' }}>
                   <td style={{ padding: '9px 10px' }}>
-                    <div style={{ fontWeight: 600, color: '#111827', marginBottom: 2 }}>{sec.title}</div>
-                    <div style={{ fontSize: 11, color: '#6B7280', lineHeight: '16px' }}>{sec.description}</div>
+                    <div style={{ fontWeight: 600, color: '#111827', marginBottom: 2 }}>{r.summary.name}</div>
+                    <div style={{ fontSize: 11, color: '#6B7280', lineHeight: '16px' }}>
+                      {areasText(r.summary.scope)} · {systemsText(r.summary.scope)} — furnish all labor,
+                      material, equipment and supervision as per plans and specifications.
+                    </div>
                   </td>
                   <td style={{ padding: '9px 10px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
-                    {money(sec.amount)}
+                    {money(r.totals.sellPrice - r.totals.tax)}
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr style={{ borderBottom: '1px solid #F3F4F6' }}>
+                  <td style={{ padding: '9px 10px' }}>
+                    <div style={{ fontWeight: 600, color: '#111827', marginBottom: 2 }}>
+                      Electrical work — complete
+                    </div>
+                    <div style={{ fontSize: 11, color: '#6B7280', lineHeight: '16px' }}>
+                      Furnish all labor, material, equipment and supervision to complete the electrical
+                      work as per plans and specifications.
+                    </div>
+                  </td>
+                  <td style={{ padding: '9px 10px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                    {money(total)}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
 
           {/* Totals */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-            <div style={{ width: 240 }}>
+            <div style={{ width: 260 }}>
               {[
-                { label: 'Subtotal', value: total },
-                { label: 'GST (5%)', value: gst },
-                { label: 'QST (9.975%)', value: qst },
+                { label: summaryRows.length > 1 ? 'Subtotal — all summaries' : 'Lump sum', value: total },
+                { label: `Sales tax (${taxRate}% on goods)`, value: tax },
               ].map(({ label, value }) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #F3F4F6' }}>
                   <span style={{ color: '#6B7280', fontSize: 12 }}>{label}</span>
@@ -344,13 +522,13 @@ function PdfPreview({ sections, status, onClose, docked }: {
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '2px solid #111827', marginTop: 4 }}>
                 <span style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>Total</span>
-                <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, fontSize: 15, color: '#111827' }}>{money(total + gst + qst)}</span>
+                <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, fontSize: 15, color: '#111827' }}>{money(total + tax)}</span>
               </div>
             </div>
           </div>
 
           <div style={{ fontSize: 10, color: '#9CA3AF', lineHeight: '15px', borderTop: '1px solid #E5E7EB', paddingTop: 12 }}>
-            <strong style={{ color: '#6B7280' }}>Terms &amp; Conditions:</strong> This proposal is valid for 30 days from the date of issue. Payment terms Net 30. Progress billing 30% on acceptance, 40% at rough-in completion, 30% on final inspection. Prices exclude GST and QST.
+            <strong style={{ color: '#6B7280' }}>Terms &amp; Conditions:</strong> This proposal is valid for 30 days from the date of issue. Payment terms Net 30. Progress billing 30% on acceptance, 40% at rough-in completion, 30% on final inspection. Prices exclude sales tax, shown separately above.
           </div>
         </div>
       </div>
@@ -434,7 +612,61 @@ export function ProposalCenter({ onNavigateTo, onBack, projectStatus, onStatusCh
   /** The live bid. The proposal quotes it unless the estimator says otherwise. */
   const bid = useBidSnapshot();
   const [breakdown, setBreakdown] = useState<BreakdownSection[]>(() => breakdownFromBid(bid.buckets));
+  /**
+   * Whether the customer document lists the scope headings under the lump sum.
+   *
+   * Off by default: the proposal quotes one number "as per plans and
+   * specifications", and listing what it covers is a decision the estimator
+   * makes per job. Either way no amount ever appears beside a heading.
+   */
+  const [showScope, setShowScope] = useState(false);
+
+  /**
+   * Which recipient the preview is showing.
+   *
+   * Recipients can be quoted different portions of the same estimate, so "the
+   * proposal" is not one document — the preview has to say which one it is.
+   */
+  const [previewFor, setPreviewFor] = useState<string>(INIT_RECIPIENTS[0].id);
+
+  /** The priced summaries the Bid Builder published. Read, never recomputed. */
+  const priced = bid.summaries;
+
+  const summariesFor = useCallback((ids: string[]) => (
+    ids.map((id) => priced.find((p) => p.summary.id === id)).filter(Boolean) as PricedSummary[]
+  ), [priced]);
+
+  /**
+   * What a recipient is quoted: the selected summaries and their sum.
+   *
+   * Falls back to the estimate's own total when the Bid Builder has not
+   * published yet — quoting the whole job is the honest answer when no summary
+   * has been chosen, and it keeps the preview from reading $0.00.
+   */
+  const priceFor = useCallback((ids: string[]) => {
+    const rows = summariesFor(ids);
+    if (rows.length === 0) {
+      return { rows, exTax: bid.totals.sellPrice - bid.totals.tax, tax: bid.totals.tax, total: bid.totals.sellPrice };
+    }
+    const total = rows.reduce((a, r) => a + r.totals.sellPrice, 0);
+    const tax = rows.reduce((a, r) => a + r.totals.tax, 0);
+    return { rows, exTax: total - tax, tax, total };
+  }, [summariesFor, bid]);
+
+  const toggleSummaryFor = (recipientId: string, summaryId: string) =>
+    setRecipients((prev) => prev.map((r) => (r.id === recipientId
+      ? {
+        ...r,
+        summaryIds: r.summaryIds.includes(summaryId)
+          ? r.summaryIds.filter((x) => x !== summaryId)
+          : [...r.summaryIds, summaryId],
+      }
+      : r)));
+
+  const previewRecipient = recipients.find((r) => r.id === previewFor) ?? recipients[0];
+  const previewPrice = priceFor(previewRecipient?.summaryIds ?? []);
   const [version, setVersion] = useState('Same for all recipients');
+
   const [showSend, setShowSend] = useState(false);
   // Persistent preview docked beside the editor, so the proposal can be
   // reviewed while it is being written rather than only at export time.
@@ -451,9 +683,23 @@ export function ProposalCenter({ onNavigateTo, onBack, projectStatus, onStatusCh
    * is legitimate — sections get excluded, figures get rounded — but it must be
    * visible, with one action to put it back.
    */
-  const bidTotal = bid.totals.sellPrice;
+  /*
+   * Compared ex-tax on both sides. The breakdown carries the sell price without
+   * tax — tax is its own line on the document — so measuring it against the
+   * tax-inclusive sell price would report a permanent phantom variance.
+   */
+  const bidTotal = bid.totals.sellPrice - bid.totals.tax;
   const variance = total - bidTotal;
   const matchesBid = Math.abs(variance) < 0.01;
+
+  /**
+   * What the header quotes: the previewed recipient's selected summaries.
+   *
+   * Not `total`, which is the internal breakdown's sum — that figure belongs to
+   * the estimator's working list and would contradict the document beside it the
+   * moment a second summary was selected.
+   */
+  const proposalTotalExTax = previewPrice.exTax;
 
   function resyncWithBid() {
     setBreakdown(breakdownFromBid(bid.buckets));
@@ -463,6 +709,8 @@ export function ProposalCenter({ onNavigateTo, onBack, projectStatus, onStatusCh
   }
   const cfg = STATUS_CFG[status];
   const allExpanded = breakdown.every((s) => !s.collapsed);
+  const customerScopeCount = includedSections.filter((sec) => !sec.internal).length;
+  const withheldCount = includedSections.length - customerScopeCount;
 
   function toggleRecipient(id: string) {
     setRecipients((prev) => prev.map((r) => (r.id === id ? { ...r, selected: !r.selected } : r)));
@@ -505,7 +753,7 @@ export function ProposalCenter({ onNavigateTo, onBack, projectStatus, onStatusCh
 
   /** Renumbers 7.1, 7.2 … after any structural change. */
   function reindex(rows: BreakdownSection[]): BreakdownSection[] {
-    return rows.map((r, i) => ({ ...r, index: `7.${i + 1}` }));
+    return rows.map((r, i) => ({ ...r, index: `8.${i + 1}` }));
   }
 
   function moveBreakdown(id: string, dir: -1 | 1) {
@@ -583,7 +831,8 @@ export function ProposalCenter({ onNavigateTo, onBack, projectStatus, onStatusCh
       { label: 'Contingency', value: COMPANY_DEFAULTS.contingency, required: false },
     ],
     taxRate: COMPANY_DEFAULTS.taxRate,
-    taxRegion: 'QC (GST + QST)',
+    // The bid owns the tax region; the proposal reports it rather than restating it.
+    taxRegion: bid.markup.taxRate > 0 ? `${bid.markup.taxRate}% on goods` : '',
     proposalSections: narrative.map((n) => ({
       title: n.title,
       filled: n.body.trim().length > 0,
@@ -681,7 +930,7 @@ export function ProposalCenter({ onNavigateTo, onBack, projectStatus, onStatusCh
         </span>
         <span className="bp-hide-sm" style={{ width: 1, height: 18, background: '#E5E7EB' }} />
         <span style={{ fontSize: 13, color: '#6B7280' }}>
-          Total (Excl. Tax): <strong style={{ color: '#2563EB', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, fontSize: 14 }}>{money(total)}</strong>
+          Total (Excl. Tax): <strong style={{ color: '#2563EB', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, fontSize: 14 }}>{money(proposalTotalExTax)}</strong>
         </span>
         <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 9999, color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}` }}>{cfg.label}</span>
         <button
@@ -756,38 +1005,108 @@ export function ProposalCenter({ onNavigateTo, onBack, projectStatus, onStatusCh
                 </button>
               </div>
 
+              {/*
+                The card had grown by accretion — a checkbox, an icon tile, a
+                name, a badge, an email, a scope control and a preview link, all
+                on one flat row with nothing establishing which mattered most.
+                Restructured into three bands: who it is, what they are quoted,
+                and whether you are looking at it. Nothing was removed.
+              */}
               <div className="bp-card-grid">
-                {recipients.map((r) => (
-                  <label
-                    key={r.id}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', border: `1px solid ${r.selected ? '#BFDBFE' : '#E5E7EB'}`, borderRadius: 10, background: r.selected ? '#FBFDFF' : 'white', cursor: 'pointer' }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={r.selected}
-                      onChange={() => toggleRecipient(r.id)}
-                      style={{ accentColor: '#2563EB', width: 15, height: 15, flexShrink: 0 }}
-                    />
-                    <div style={{ width: 28, height: 28, borderRadius: 6, background: r.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Building2 size={14} color={r.accent} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{r.company}</span>
-                        {r.primary && (
-                          <span style={{ fontSize: 10, fontWeight: 600, color: '#7C3AED', background: '#F5F3FF', padding: '1px 6px', borderRadius: 4 }}>Primary</span>
+                {recipients.map((r) => {
+                  const previewing = previewFor === r.id;
+                  return (
+                    <div
+                      key={r.id}
+                      style={{
+                        border: `1px solid ${previewing ? '#BFDBFE' : r.selected ? '#E5E7EB' : '#F3F4F6'}`,
+                        borderRadius: 10,
+                        background: r.selected ? 'white' : '#FCFCFD',
+                        boxShadow: previewing ? '0 0 0 2px #EFF6FF' : 'none',
+                        /*
+                         * No `overflow: hidden` here — it clipped the scope
+                         * popover to the card. The footer band rounds its own
+                         * bottom corners instead, which is what the overflow was
+                         * for.
+                         */
+                        display: 'flex',
+                        flexDirection: 'column',
+                      }}
+                    >
+                      {/* Who — the identity band. */}
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px 10px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={r.selected}
+                          aria-label={`Send to ${r.company}`}
+                          onChange={() => toggleRecipient(r.id)}
+                          style={{ accentColor: '#2563EB', width: 15, height: 15, flexShrink: 0, marginTop: 2, cursor: 'pointer' }}
+                        />
+                        <span style={{ width: 30, height: 30, borderRadius: 7, background: r.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Building2 size={15} color={r.accent} />
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: r.selected ? '#111827' : '#6B7280', lineHeight: '18px' }}>
+                              {r.company}
+                            </span>
+                            {r.primary && (
+                              <span style={{ fontSize: 9, fontWeight: 700, color: '#7C3AED', background: '#F5F3FF', border: '1px solid #DDD6FE', padding: '1px 6px', borderRadius: 999, letterSpacing: '0.03em' }}>
+                                PRIMARY
+                              </span>
+                            )}
+                          </span>
+                          <span style={{ display: 'block', fontSize: 11, color: '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+                            {r.email}
+                          </span>
+                        </span>
+                      </label>
+
+                      {/*
+                        What they are quoted, read-only here. Choosing the
+                        summaries happens in section 2 for the recipient being
+                        previewed — one picker, so it is always clear whose
+                        proposal is being edited.
+                      */}
+                      <div style={{ padding: '0 14px 10px' }}>
+                        <div style={{ border: '1px solid #E5E7EB', borderRadius: 7, padding: '6px 9px', background: '#FAFAFA' }}>
+                          <span style={{ display: 'block', fontSize: 10, color: '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {r.summaryIds.length === 0
+                              ? 'No summaries selected'
+                              : summariesFor(r.summaryIds).map((x) => x.summary.name).join(' + ') || `${r.summaryIds.length} selected`}
+                          </span>
+                          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 700, color: '#111827' }}>
+                            {money(priceFor(r.summaryIds).total)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Whether you are looking at it — the footer band. */}
+                      <div style={{ marginTop: 'auto', padding: '7px 14px', borderTop: '1px solid #F3F4F6', background: previewing ? '#F8FBFF' : '#FAFAFA', borderRadius: '0 0 9px 9px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {previewing ? (
+                          <>
+                            <Eye size={11} color="#2563EB" />
+                            <span style={{ fontSize: 10, fontWeight: 600, color: '#1D4ED8' }}>Shown in preview</span>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => setPreviewFor(r.id)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'transparent', padding: 0, fontSize: 10, color: '#6B7280', cursor: 'pointer' }}
+                          >
+                            <Eye size={11} color="#9CA3AF" /> Preview this proposal
+                          </button>
                         )}
                       </div>
-                      <div style={{ fontSize: 11, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.email}</div>
                     </div>
-                  </label>
-                ))}
+                  );
+                })}
               </div>
 
               <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', flex: 1, minWidth: 240 }}>
                   <Info size={13} color="#9CA3AF" />
-                  A separate proposal will be sent to each selected recipient.
+                  A separate proposal will be sent to each selected recipient, each priced for the
+                  scope set on its card.
                 </div>
                 <span style={{ fontSize: 12, color: '#6B7280' }}>Proposal version:</span>
                 <select
@@ -803,7 +1122,39 @@ export function ProposalCenter({ onNavigateTo, onBack, projectStatus, onStatusCh
               </div>
             </div>
 
-            {/* 2–6 — Narrative sections */}
+            {/*
+              Bid Summary selection — step 2 of Recipient → Summaries → Review →
+              Send. Scoped to the recipient being previewed, because different
+              GCs get different combinations of the same summaries.
+            */}
+            <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>2. Select Bid Summary or Summaries</span>
+                <span style={{ fontSize: 12, color: '#6B7280', flex: 1 }}>
+                  for <strong>{previewRecipient?.company}</strong>
+                </span>
+                <span style={{ fontSize: 11, color: '#6B7280' }}>
+                  {previewRecipient?.summaryIds.length ?? 0} of {priced.length} selected ·{' '}
+                  <strong style={{ fontFamily: 'IBM Plex Mono, monospace', color: '#111827' }}>
+                    {money(previewPrice.total)}
+                  </strong>
+                </span>
+              </div>
+
+              <SummaryPicker
+                priced={priced}
+                selectedIds={previewRecipient?.summaryIds ?? []}
+                onToggle={(id) => previewRecipient && toggleSummaryFor(previewRecipient.id, id)}
+              />
+
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 10, fontSize: 11, color: '#6B7280', lineHeight: '16px' }}>
+                <Info size={12} color="#9CA3AF" style={{ flexShrink: 0, marginTop: 1 }} />
+                All summaries come from the one master estimate — selecting a different combination
+                per recipient neither duplicates the takeoff nor creates a second estimate.
+              </div>
+            </div>
+
+            {/* 3–7 — Narrative sections */}
             {narrative.map((sec) => (
               <SectionCard
                 key={sec.id}
@@ -821,8 +1172,13 @@ export function ProposalCenter({ onNavigateTo, onBack, projectStatus, onStatusCh
             {/* 7 — Proposal breakdown */}
             <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid #F3F4F6', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>7. Proposal Breakdown</span>
-                <span style={{ fontSize: 12, color: '#6B7280' }}>Seeded from the bid · editable</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>8. Proposal Breakdown</span>
+                <span
+                  title="These amounts build the bid total. The customer document shows the total as a single lump sum — never these lines."
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#6B7280', background: '#F3F4F6', border: '1px solid #E5E7EB', padding: '2px 8px', borderRadius: 9999, whiteSpace: 'nowrap' }}
+                >
+                  <EyeOff size={11} /> Internal — not printed
+                </span>
                 {matchesBid ? (
                   <span title="This breakdown adds up to the bid" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#16A34A', background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '2px 8px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
                     <ShieldCheck size={11} /> Matches bid
@@ -874,6 +1230,30 @@ export function ProposalCenter({ onNavigateTo, onBack, projectStatus, onStatusCh
                 >
                   {allExpanded ? 'Collapse all' : 'Expand all'}
                 </button>
+              </div>
+
+              {/*
+                The proposal quotes a lump sum. This is the only thing about the
+                breakdown the client can ever see, and even then it is headings
+                and descriptions — no amounts, and nothing marked internal.
+              */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #F3F4F6', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={showScope}
+                    onChange={(e) => setShowScope(e.target.checked)}
+                    style={{ accentColor: '#2563EB', width: 14, height: 14, cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: 12, color: '#374151', fontWeight: 500 }}>
+                    List scope headings on the proposal
+                  </span>
+                </label>
+                <span style={{ fontSize: 11, color: '#9CA3AF', flex: 1, minWidth: 180 }}>
+                  {showScope
+                    ? `${customerScopeCount} heading${customerScopeCount === 1 ? '' : 's'} shown without amounts · ${withheldCount} withheld as internal`
+                    : 'Off — the proposal reads as a lump sum as per plans and specifications.'}
+                </span>
               </div>
 
               {breakdown.map((sec, i) => (
@@ -993,8 +1373,16 @@ export function ProposalCenter({ onNavigateTo, onBack, projectStatus, onStatusCh
                 <FileText size={12} color="#9CA3AF" />
                 <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Proposal settings</span>
               </div>
-              {PROPOSAL_SETTINGS.map(({ label, value }, i) => (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '5px 0', borderBottom: i < PROPOSAL_SETTINGS.length - 1 ? '1px solid #F3F4F6' : 'none', fontSize: 12 }}>
+              {/* Tax comes from the bid so the two documents cannot state different rates. */}
+              {[
+                PROPOSAL_SETTINGS[0],
+                {
+                  label: 'Sales tax',
+                  value: `${bid.markup.taxRate}% on goods`,
+                },
+                ...PROPOSAL_SETTINGS.slice(1),
+              ].map(({ label, value }, i) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '5px 0', borderBottom: i < PROPOSAL_SETTINGS.length ? '1px solid #F3F4F6' : 'none', fontSize: 12 }}>
                   <span style={{ color: '#6B7280', flexShrink: 0 }}>{label}</span>
                   <span style={{ color: '#374151', fontWeight: 500, textAlign: 'right' }}>{value}</span>
                 </div>
@@ -1027,7 +1415,18 @@ export function ProposalCenter({ onNavigateTo, onBack, projectStatus, onStatusCh
         {/* Persistent preview drawer */}
         {previewOpen && (
           <div className="bp-preview-dock" style={{ width: 420, minWidth: 420, borderLeft: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <PdfPreview docked sections={breakdown} status={status} onClose={() => setPreviewOpen(false)} />
+            <PdfPreview
+              docked
+              sections={breakdown}
+              status={status}
+              onClose={() => setPreviewOpen(false)}
+              showScope={showScope}
+              taxRate={bid.markup.taxRate}
+              recipient={previewRecipient}
+              scopePrice={previewPrice}
+              bidTax={bid.totals.tax}
+              bidExTax={bid.totals.sellPrice - bid.totals.tax}
+            />
           </div>
         )}
       </div>

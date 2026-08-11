@@ -1,7 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, Info, Save } from 'lucide-react';
-import { money, pct, MarkupKey, MarkupOverrides, isInherited, COMPANY_DEFAULTS } from '../../lib/costing';
+import { AlertTriangle, Info, Save, RotateCcw } from 'lucide-react';
+import {
+  money, pct, MarkupKey, MarkupOverrides, isInherited, COMPANY_DEFAULTS,
+  CategoryLine, CostCategoryId, TaxSettings, DEFAULT_TAXABLE,
+} from '../../lib/costing';
+import {
+  TAX_REGIONS, RATES_AS_OF, RateBasis, findRegion, baseRateOf, effectiveTaxRate,
+} from '../../lib/taxRegions';
 import {
   QuoteRow, QUOTE_CATEGORIES, QUOTE_STATUS_CFG, QuoteStatus,
   SubRow, SUB_SCOPES,
@@ -58,13 +64,17 @@ function useGroups(allIds: string[]) {
 }
 
 function TabShell({ title, meta, total, children }: {
-  title: string; meta: string; total: number; children: React.ReactNode;
+  title: string;
+  /** A node, not just a string — the Tax tab puts its rate control here. */
+  meta: React.ReactNode;
+  total: number;
+  children: React.ReactNode;
 }) {
   return (
     <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', background: 'white' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: '1px solid #E5E7EB', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{title}</span>
-        <span style={{ fontSize: 11, color: '#6B7280', flex: 1 }}>{meta}</span>
+        <span style={{ fontSize: 11, color: '#6B7280', flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>{meta}</span>
         <span style={{ fontSize: 10, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>In bid</span>
         <span style={{ ...MONO, fontSize: 16, fontWeight: 700, color: '#111827' }}>{money(total)}</span>
       </div>
@@ -263,10 +273,14 @@ export function QuotesTab({ rows, onChange, taxRate }: {
 
 // ─── Subcontractors ───────────────────────────────────────────────────────────
 
-const S_GRID = '34px 132px 168px 146px 72px 34px 104px 66px 104px 96px 104px 52px';
+/*
+ * No Labor hrs column: subs quote lump sums, so internal hours were a McCormick
+ * habit rather than a number anyone here fills in. The tax checkbox stays.
+ */
+const S_GRID = '34px 140px 180px 158px 34px 112px 72px 112px 100px 112px 52px';
 const S_COLS: ColumnDef[] = [
   C('Incl'), L('Scope'), L('Subcontractor'), L('Cost code'),
-  R('Labor hrs'), C('Tax'), R('Quoted cost'), R('Mult'), R('Cost amount'), R('Remaining'),
+  C('Tax'), R('Quoted cost'), R('Mult'), R('Cost amount'), R('Remaining'),
   L('Attachment'), R(''),
 ];
 
@@ -306,7 +320,7 @@ export function SubcontractorsTab({ rows, onChange, taxRate }: {
     const id = `s-${rows.length + 1}-${Math.round(includedTotal)}`;
     onChange([...rows, {
       id, included: false, scope: SUB_SCOPES[0], subcontractor: '', costCode: COST_CODES[0],
-      labourHours: 0, taxable: false, quotedCost: 0, multiplier: 1,
+      taxable: false, quotedCost: 0, multiplier: 1,
     }]);
     if (!g.open.has(SUB_SCOPES[0])) g.toggle(SUB_SCOPES[0]);
     setOpenId(id);
@@ -318,7 +332,7 @@ export function SubcontractorsTab({ rows, onChange, taxRate }: {
       meta={`${rows.filter((r) => r.included).length} of ${rows.length} included · ${present.length} scopes`}
       total={includedTotal}
     >
-      <NoteBanner text="Labor hours are optional on subcontracted scope and are never derived — the quoted cost is the whole price." />
+      <NoteBanner text="Subcontracted scope is quoted as a lump sum — the quoted cost is the whole price, and it carries no internal labor hours." />
 
       <TableToolbar onExpandAll={g.expandAll} onCollapseAll={g.collapseAll}>
         <button onClick={addSub} style={{ ...smallBtn, borderColor: '#93C5FD', color: '#1D4ED8', fontWeight: 600 }}>
@@ -330,7 +344,7 @@ export function SubcontractorsTab({ rows, onChange, taxRate }: {
         groups={groups}
         columns={S_COLS}
         gridTemplate={S_GRID}
-        minWidth={1440}
+        minWidth={1300}
         open={g.open}
         onToggle={g.toggle}
         renderRow={(row) => {
@@ -341,7 +355,6 @@ export function SubcontractorsTab({ rows, onChange, taxRate }: {
               <SelectCell value={row.scope} onChange={(v) => update(row.id, { scope: v })} options={scopes} allowCustom />
               <TextCell value={row.subcontractor} onChange={(v) => update(row.id, { subcontractor: v })} placeholder="Subcontractor" strong />
               <SelectCell value={row.costCode} onChange={(v) => update(row.id, { costCode: v })} options={COST_CODES} allowCustom />
-              <NumCell value={row.labourHours} onChange={(v) => update(row.id, { labourHours: v })} step={0.25} suffix="h" />
               <TaxCheck on={row.taxable} onChange={(v) => update(row.id, { taxable: v })} label={row.subcontractor || 'subcontractor'} />
               <NumCell value={row.quotedCost} onChange={(v) => update(row.id, { quotedCost: v })} prefix="$" step={0.01} />
               <NumCell value={row.multiplier} onChange={(v) => update(row.id, { multiplier: v })} step={0.01} />
@@ -368,16 +381,12 @@ export function SubcontractorsTab({ rows, onChange, taxRate }: {
         gridTemplate={S_GRID}
         cells={[
           <span key="l" style={{ ...headStyle('left'), color: '#374151' }}>Total</span>,
-          <span key="1" />, <span key="2" />, <span key="3" />,
-          <span key="hrs" style={{ ...MONO, fontSize: 11, color: '#6B7280', textAlign: 'right', display: 'block', width: '100%' }}>
-            {rows.filter((r) => r.included).reduce((s, r) => s + r.labourHours, 0).toFixed(2)} h
-          </span>,
-          <span key="5" />,
+          <span key="1" />, <span key="2" />, <span key="3" />, <span key="4" />,
           <StaticCell key="tax" align="right">{money(rows.filter((r) => r.included).reduce((s, r) => s + rowTax(amountOf(r), r.taxable, taxRate), 0))}</StaticCell>,
-          <span key="7" />,
+          <span key="6" />,
           <AmountCell key="amt" value={includedTotal} strong />,
           <AmountCell key="rem" value={remainingTotal} muted />,
-          <span key="10" />, <span key="11" />,
+          <span key="9" />, <span key="10" />,
         ]}
       />
 
@@ -410,7 +419,6 @@ export function SubcontractorsTab({ rows, onChange, taxRate }: {
             { label: 'Quoted cost', value: money(active.quotedCost) },
             { label: `Multiplier ×${active.multiplier}`, value: money(amountOf(active)) },
             { label: `Tax ${active.taxable ? `${taxRate}%` : '—'}`, value: money(rowTax(amountOf(active), active.taxable, taxRate)) },
-            { label: 'Labor hours', value: `${active.labourHours.toFixed(2)} h` },
             { label: 'Cost amount', value: money(amountOf(active)), strong: true },
           ]} />
         </DetailDrawer>
@@ -421,10 +429,15 @@ export function SubcontractorsTab({ rows, onChange, taxRate }: {
 
 // ─── Direct job expenses ──────────────────────────────────────────────────────
 
-const E_GRID = '34px 158px 146px 146px 72px 34px 90px 60px 102px 96px 126px 52px';
+/*
+ * No Labor hrs (same reason as subcontractors) and no multiplier or duration:
+ * equipment rentals live on their own tab, which already covers duration, so
+ * Job Expenses keeps a plain quantity that defaults to 1.
+ */
+const E_GRID = '34px 168px 156px 156px 34px 96px 62px 110px 100px 140px 52px';
 const E_COLS: ColumnDef[] = [
   C('Incl'), L('Expense'), L('Supplier'), L('Cost code'),
-  R('Labor hrs'), C('Tax'), R('Unit cost'), R('Qty'), R('Total cost'), R('Remaining'),
+  C('Tax'), R('Unit cost'), R('Qty'), R('Total cost'), R('Remaining'),
   L('Notes'), R(''),
 ];
 
@@ -463,7 +476,7 @@ export function ExpensesTab({ rows, onChange, taxRate }: {
     const id = `dje-${rows.length + 1}-${Math.round(includedTotal)}`;
     onChange([...rows, {
       id, group: 'commercial-misc', included: true, expense: 'New expense', supplier: '',
-      costCode: COST_CODES[0], labourHours: 0, taxable: false, unitCost: 0, quantity: 1, standard: false,
+      costCode: COST_CODES[0], taxable: false, unitCost: 0, quantity: 1, standard: false,
     }]);
     if (!g.open.has('commercial-misc')) g.toggle('commercial-misc');
     setOpenId(id);
@@ -471,7 +484,7 @@ export function ExpensesTab({ rows, onChange, taxRate }: {
 
   return (
     <TabShell
-      title="Direct Job Expenses"
+      title="Job Expenses"
       meta={`${rows.filter((r) => r.included).length} of ${rows.length} on the checklist`}
       total={includedTotal}
     >
@@ -500,7 +513,7 @@ export function ExpensesTab({ rows, onChange, taxRate }: {
         groups={groups}
         columns={E_COLS}
         gridTemplate={E_GRID}
-        minWidth={1390}
+        minWidth={1300}
         open={g.open}
         onToggle={g.toggle}
         renderRow={(row) => {
@@ -519,7 +532,6 @@ export function ExpensesTab({ rows, onChange, taxRate }: {
               </span>
               <TextCell value={row.supplier} onChange={(v) => update(row.id, { supplier: v })} placeholder="Supplier" />
               <SelectCell value={row.costCode} onChange={(v) => update(row.id, { costCode: v })} options={COST_CODES} allowCustom />
-              <NumCell value={row.labourHours} onChange={(v) => update(row.id, { labourHours: v })} step={0.25} suffix="h" />
               <TaxCheck on={row.taxable} onChange={(v) => update(row.id, { taxable: v })} label={row.expense} />
               <NumCell value={row.unitCost} onChange={(v) => update(row.id, { unitCost: v })} prefix="$" step={0.01} />
               <NumCell value={row.quantity} onChange={(v) => update(row.id, { quantity: v })} step={1} />
@@ -541,16 +553,12 @@ export function ExpensesTab({ rows, onChange, taxRate }: {
         gridTemplate={E_GRID}
         cells={[
           <span key="l" style={{ ...headStyle('left'), color: '#374151' }}>Total</span>,
-          <span key="1" />, <span key="2" />, <span key="3" />,
-          <span key="hrs" style={{ ...MONO, fontSize: 11, color: '#6B7280', textAlign: 'right', display: 'block', width: '100%' }}>
-            {rows.filter((r) => r.included).reduce((s, r) => s + r.labourHours, 0).toFixed(2)} h
-          </span>,
-          <span key="5" />,
+          <span key="1" />, <span key="2" />, <span key="3" />, <span key="4" />,
           <StaticCell key="tax" align="right">{money(rows.filter((r) => r.included).reduce((s, r) => s + rowTax(totalOf(r), r.taxable, taxRate), 0))}</StaticCell>,
-          <span key="7" />,
+          <span key="6" />,
           <AmountCell key="amt" value={includedTotal} strong />,
           <AmountCell key="rem" value={remainingTotal} muted />,
-          <span key="10" />, <span key="11" />,
+          <span key="9" />, <span key="10" />,
         ]}
       />
 
@@ -853,42 +861,242 @@ export function BondTab({ rows, onChange, sellPrice }: {
 
 // ─── Tax ──────────────────────────────────────────────────────────────────────
 
-export function TaxTab({ markup, overrides, onMarkupChange, onResetKey, totals, taxRegion, onTaxRegionChange }: {
+/**
+ * A per-row tax rate. Blank inherits the bid rate; an explicit number overrides.
+ *
+ * `parseFloat(x) || 0` would be a bug here in the direction that undercharges —
+ * a half-typed field would read as 0% tax on that category — so only a parsed
+ * number is written, and clearing the field leaves the rate where it was.
+ */
+function TaxRateCell({ value, inherited, disabled, label, onChange, onReset }: {
+  value: number;
+  inherited: boolean;
+  disabled: boolean;
+  label: string;
+  onChange: (v: number) => void;
+  onReset: () => void;
+}) {
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-end' }}>
+      {!inherited && !disabled && (
+        <button
+          onClick={onReset}
+          title="Back to the bid rate"
+          aria-label={`Reset ${label} to the bid rate`}
+          style={{ width: 15, height: 15, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}
+        >
+          <RotateCcw size={9} color="#D97706" />
+        </button>
+      )}
+      <span style={{ position: 'relative', width: 58 }}>
+        <input
+          type="number"
+          step="0.001"
+          min={0}
+          value={value}
+          disabled={disabled}
+          aria-label={label}
+          onChange={(e) => {
+            const n = parseFloat(e.target.value);
+            if (Number.isFinite(n)) onChange(n);
+          }}
+          style={{
+            ...MONO,
+            width: '100%', height: 24, padding: '0 15px 0 5px', borderRadius: 5, fontSize: 11,
+            border: `1px solid ${inherited ? '#E5E7EB' : '#D97706'}`,
+            background: disabled ? '#F9FAFB' : 'white',
+            color: disabled ? '#9CA3AF' : '#111827',
+            textAlign: 'right', outline: 'none', boxSizing: 'border-box',
+          }}
+        />
+        <span style={{ position: 'absolute', right: 5, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: '#9CA3AF' }}>%</span>
+      </span>
+    </span>
+  );
+}
+
+export function TaxTab({
+  markup, overrides, onMarkupChange, onResetKey, totals,
+  region, onRegionChange, basis, onBasisChange, custom, onCustomChange,
+  taxSettings, onTaxEnabled, onTaxableChange, onTaxRateChange,
+}: {
   markup: Record<MarkupKey, number>;
   overrides: MarkupOverrides;
   onMarkupChange: (key: MarkupKey, value: number) => void;
   onResetKey: (key: MarkupKey) => void;
-  totals: { materialSell: number; quotesCost: number; taxableBase: number; tax: number };
-  taxRegion: string;
-  onTaxRegionChange: (v: string) => void;
+  totals: {
+    materialSell: number; quotesCost: number; taxableBase: number; tax: number;
+    categories: CategoryLine[];
+  };
+  /** Two-letter state code, or '' while the bid is on a manual rate. */
+  region: string;
+  onRegionChange: (code: string) => void;
+  basis: RateBasis;
+  onBasisChange: (b: RateBasis) => void;
+  /** County or city percentage added on top of the region's published rate. */
+  custom: number;
+  onCustomChange: (v: number) => void;
+  taxSettings: TaxSettings;
+  onTaxEnabled: (on: boolean) => void;
+  onTaxableChange: (id: CostCategoryId, on: boolean) => void;
+  /** `undefined` clears the override and returns the category to the bid rate. */
+  onTaxRateChange: (id: CostCategoryId, rate: number | undefined) => void;
 }) {
   const inherited = isInherited(overrides, 'taxRate');
-  const REGIONS = ['QC — GST 5% + QST 9.975%', 'ON — HST 13%', 'NSW — GST 10%', 'No tax'];
+  const picked = findRegion(region);
+  const regionRate = baseRateOf(picked, basis);
+  const derived = effectiveTaxRate(picked, basis, custom);
+  /** True when the region + custom figure disagrees with the rate being charged. */
+  const outOfSync = !!picked && Math.abs(derived - markup.taxRate) > 0.0005;
+  const taxOn = taxSettings.enabled;
+
+  /*
+   * The rate and the on/off switch sit in the tab header because that is where
+   * an estimator looks when a job turns out to be exempt, or when the rate is
+   * wrong by a quarter point. Sending them to Settings to change one bid is how
+   * a company default gets edited by accident.
+   *
+   * Same value as the Rate field below, one state — the two cannot disagree.
+   */
+  const headerControls = (
+    <>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+        <input
+          type="checkbox"
+          checked={taxOn}
+          aria-label="Charge sales tax on this bid"
+          title={taxOn ? 'Sales tax is charged on this bid' : 'Sales tax is off for this bid'}
+          onChange={(e) => onTaxEnabled(e.target.checked)}
+          style={{ accentColor: '#0891B2', width: 14, height: 14, cursor: 'pointer' }}
+        />
+        <span style={{ fontSize: 11, color: taxOn ? '#374151' : '#9CA3AF', fontWeight: 500 }}>Charge tax</span>
+      </label>
+
+      <span style={{ position: 'relative', width: 84 }}>
+        <input
+          type="number"
+          step="0.001"
+          min={0}
+          value={markup.taxRate}
+          aria-label="Sales tax rate percent"
+          title="Bid rate. Overrides the company default for this bid only."
+          disabled={!taxOn}
+          onChange={(e) => onMarkupChange('taxRate', parseFloat(e.target.value) || 0)}
+          style={{
+            ...MONO,
+            width: '100%', height: 26, padding: '0 20px 0 7px', borderRadius: 6,
+            border: `1px solid ${inherited ? '#E5E7EB' : '#D97706'}`,
+            background: taxOn ? 'white' : '#F9FAFB',
+            color: taxOn ? '#111827' : '#9CA3AF',
+            fontSize: 12, textAlign: 'right', outline: 'none', boxSizing: 'border-box',
+          }}
+        />
+        <span style={{ position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#9CA3AF' }}>%</span>
+      </span>
+
+      {inherited
+        ? (
+          <span title={`Inherited from Company Settings (${COMPANY_DEFAULTS.taxRate}%). Type here to override it for this bid.`} style={{ fontSize: 9, fontWeight: 700, color: '#1D4ED8', background: '#EFF6FF', padding: '3px 7px', borderRadius: 4, whiteSpace: 'nowrap' }}>
+            COMPANY
+          </span>
+        )
+        : (
+          <button onClick={() => onResetKey('taxRate')} title="Back to the company default" style={{ ...smallBtn, height: 24 }}>
+            Reset
+          </button>
+        )}
+
+      <span style={{ color: '#9CA3AF' }}>
+        {taxOn ? 'on taxable goods' : 'not charged on this bid'}
+      </span>
+    </>
+  );
 
   return (
-    <TabShell title="Tax" meta={`${markup.taxRate}% on taxable goods`} total={totals.tax}>
+    <TabShell title="Tax" meta={headerControls} total={totals.tax}>
+      {!taxOn && (
+        <NoteBanner
+          tone="warn"
+          text={`Sales tax is off for this bid — nothing is added to any category. The ${markup.taxRate}% rate stays on record and comes back when you switch it on.`}
+        />
+      )}
+
       <div style={{ padding: 16, display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 300 }}>
           <div style={{ ...HEAD_CELL, marginBottom: 8 }}>Tax basis</div>
-          <DrawerReadout rows={[
-            { label: 'Material (with markup)', value: money(totals.materialSell) },
-            { label: 'Supplier quotes', value: money(totals.quotesCost) },
-            { label: 'Taxable base', value: money(totals.taxableBase), strong: true },
-            { label: `Sales tax @ ${markup.taxRate}%`, value: money(totals.tax), strong: true },
-          ]} />
+
+          {/*
+            One row per cost category, ticked where it belongs in the base. The
+            totals underneath are read-only on purpose: they are the arithmetic,
+            and the only way to move them is to change what feeds them.
+          */}
+          <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '34px 1fr 110px 84px 96px', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+              <span style={{ ...HEAD_CELL, textAlign: 'center' }}>Tax</span>
+              <span style={HEAD_CELL}>Category</span>
+              <span style={{ ...HEAD_CELL, textAlign: 'right' }}>Cost</span>
+              <span style={{ ...HEAD_CELL, textAlign: 'right' }}>Rate</span>
+              <span style={{ ...HEAD_CELL, textAlign: 'right' }}>Tax</span>
+            </div>
+
+            {totals.categories.map((c) => {
+              const on = taxSettings.taxable[c.id] ?? DEFAULT_TAXABLE[c.id];
+              return (
+                <div
+                  key={c.id}
+                  style={{
+                    display: 'grid', gridTemplateColumns: '34px 1fr 110px 84px 96px', alignItems: 'center', gap: 6,
+                    padding: '5px 10px', borderBottom: '1px solid #F3F4F6',
+                    opacity: taxOn ? 1 : 0.5,
+                  }}
+                >
+                  <TaxCheck
+                    on={on && taxOn}
+                    onChange={(v) => onTaxableChange(c.id, v)}
+                    label={c.label}
+                  />
+                  <span style={{ fontSize: 12, color: on && taxOn ? '#111827' : '#6B7280' }}>{c.label}</span>
+                  <span style={{ ...MONO, fontSize: 12, color: '#6B7280', textAlign: 'right' }}>{money(c.cost)}</span>
+                  <TaxRateCell
+                    value={c.taxRate}
+                    inherited={c.taxRateInherited}
+                    disabled={!taxOn || !on}
+                    label={`${c.label} tax rate percent`}
+                    onChange={(v) => onTaxRateChange(c.id, v)}
+                    onReset={() => onTaxRateChange(c.id, undefined)}
+                  />
+                  <span style={{ ...MONO, fontSize: 12, color: c.tax > 0 ? '#111827' : '#D1D5DB', textAlign: 'right' }}>
+                    {money(c.tax)}
+                  </span>
+                </div>
+              );
+            })}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '34px 1fr 110px 84px 96px', alignItems: 'center', gap: 6, padding: '8px 10px', background: '#F9FAFB', borderTop: '1px solid #E5E7EB' }}>
+              <span />
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>Taxable base</span>
+              <span style={{ ...MONO, fontSize: 13, fontWeight: 700, color: '#111827', textAlign: 'right' }}>{money(totals.taxableBase)}</span>
+              {/* No blended rate here: an average of differing rates is a number
+                  nobody can act on, and it invites being read as the rate. */}
+              <span style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'right' }}>
+                {totals.categories.some((c) => !c.taxRateInherited) ? 'mixed' : ''}
+              </span>
+              <span style={{ ...MONO, fontSize: 13, fontWeight: 700, color: '#111827', textAlign: 'right' }}>{money(totals.tax)}</span>
+            </div>
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 10, fontSize: 11, color: '#6B7280', lineHeight: '16px' }}>
             <Info size={11} style={{ flexShrink: 0, marginTop: 1 }} />
-            Tax applies to goods only. Labor, subcontracted scope and bond premiums are excluded from the base — flip a row&apos;s Tax checkbox on its own tab to change that.
+            Goods are taxed and services are not, in most places — which is why material and
+            supplier quotes start ticked. Tick labor where the state taxes installation, or untick
+            material against a resale certificate. Each row can carry its own rate; leave it and it
+            follows the bid rate above. Taxable base and sales tax are calculated from these boxes
+            and those rates — neither can be typed over.
           </div>
         </div>
 
-        <div style={{ width: 320, minWidth: 280 }}>
+        <div style={{ width: 360, minWidth: 300 }}>
           <div style={{ ...HEAD_CELL, marginBottom: 8 }}>Rate</div>
-          <DrawerField label="Tax region">
-            <select value={taxRegion} onChange={(e) => onTaxRegionChange(e.target.value)} style={drawerInput}>
-              {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </DrawerField>
           <DrawerField
             label="Sales tax rate"
             hint={inherited ? `Inherited from Company Settings (${COMPANY_DEFAULTS.taxRate}%).` : 'Overridden for this project.'}
@@ -899,8 +1107,9 @@ export function TaxTab({ markup, overrides, onMarkupChange, onResetKey, totals, 
                   type="number"
                   step="0.001"
                   value={markup.taxRate}
+                  disabled={!taxOn}
                   onChange={(e) => onMarkupChange('taxRate', parseFloat(e.target.value) || 0)}
-                  style={{ ...drawerInput, ...MONO, paddingRight: 24, textAlign: 'right', borderColor: inherited ? '#E5E7EB' : '#D97706' }}
+                  style={{ ...drawerInput, ...MONO, paddingRight: 24, textAlign: 'right', borderColor: inherited ? '#E5E7EB' : '#D97706', background: taxOn ? 'white' : '#F9FAFB' }}
                 />
                 <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#9CA3AF' }}>%</span>
               </div>
@@ -909,6 +1118,86 @@ export function TaxTab({ markup, overrides, onMarkupChange, onResetKey, totals, 
                 : <button onClick={() => onResetKey('taxRate')} style={smallBtn}>Reset</button>}
             </div>
           </DrawerField>
+
+          <DrawerField label="State" hint={`All 50 states and DC. Published rates as of ${RATES_AS_OF}.`}>
+            <select value={region} onChange={(e) => onRegionChange(e.target.value)} style={drawerInput}>
+              <option value="">Manual rate — no region</option>
+              {TAX_REGIONS.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.name} — {r.stateRate.toFixed(2)}% state · {r.typicalCombined.toFixed(2)}% typical
+                </option>
+              ))}
+            </select>
+          </DrawerField>
+
+          {picked && (
+            <>
+              <DrawerField label="Rate basis">
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {([
+                    { id: 'state' as RateBasis, label: 'State only', value: picked.stateRate },
+                    { id: 'combined' as RateBasis, label: 'Typical combined', value: picked.typicalCombined },
+                  ]).map((o) => (
+                    <button
+                      key={o.id}
+                      onClick={() => onBasisChange(o.id)}
+                      style={{
+                        flex: 1, height: 32, borderRadius: 6, cursor: 'pointer', fontSize: 11,
+                        border: `1px solid ${basis === o.id ? '#2563EB' : '#E5E7EB'}`,
+                        background: basis === o.id ? '#EFF6FF' : 'white',
+                        color: basis === o.id ? '#1D4ED8' : '#374151',
+                        fontWeight: basis === o.id ? 600 : 400,
+                      }}
+                    >
+                      {o.label} · {o.value.toFixed(2)}%
+                    </button>
+                  ))}
+                </div>
+              </DrawerField>
+
+              <DrawerField
+                label="County / city addition"
+                hint="Added on top of the region rate — Philadelphia adds 2% to Pennsylvania's 6%."
+              >
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="number" step="0.125" min={0} value={custom}
+                    aria-label="Custom county or city tax percent"
+                    onChange={(e) => onCustomChange(parseFloat(e.target.value) || 0)}
+                    style={{ ...drawerInput, ...MONO, paddingRight: 24, textAlign: 'right' }}
+                  />
+                  <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#9CA3AF' }}>%</span>
+                </div>
+              </DrawerField>
+
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '9px 11px', background: '#F9FAFB' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ fontSize: 11, color: '#6B7280', flex: 1 }}>
+                    {picked.name} {basis === 'state' ? 'state' : 'typical'} {regionRate.toFixed(3)}%
+                    {custom > 0 ? ` + ${custom}% local` : ''}
+                  </span>
+                  <span style={{ ...MONO, fontSize: 13, fontWeight: 700, color: '#111827' }}>{derived.toFixed(3)}%</span>
+                </div>
+                {picked.note && (
+                  <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>{picked.note}</div>
+                )}
+                {outOfSync && (
+                  <button
+                    onClick={() => onMarkupChange('taxRate', derived)}
+                    style={{ ...smallBtn, marginTop: 8, width: '100%', justifyContent: 'center', borderColor: '#93C5FD', color: '#1D4ED8', fontWeight: 600 }}
+                  >
+                    Apply {derived.toFixed(3)}% to this bid
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 10, fontSize: 10, color: '#9CA3AF', lineHeight: '15px' }}>
+            <Info size={10} style={{ flexShrink: 0, marginTop: 1 }} />
+            Published rates are a starting point, not a filing. A specific job address can differ from
+            its state average — confirm the county before the bid goes out.
+          </div>
         </div>
       </div>
     </TabShell>

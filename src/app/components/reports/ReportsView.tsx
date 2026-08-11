@@ -41,7 +41,7 @@ const REPORTS: ReportDef[] = [
   { id: 'material-spend',      label: 'Material spend',        description: 'Material purchases by supplier, category, and period.', icon: <Package size={14} />, category: 'Procurement' },
   { id: 'supplier-performance',label: 'Supplier performance',  description: 'Supplier pricing accuracy, lead times, and quote turnaround.', icon: <BarChart2 size={14} />, category: 'Procurement' },
   { id: 'project-cashflow',    label: 'Project cashflow',      description: 'Invoiced, received, and outstanding amounts over project timeline.', icon: <DollarSign size={14} />, category: 'Finance' },
-  { id: 'tax-summary',         label: 'Tax summary',           description: 'GST/QST collected and payable per period.', icon: <FileText size={14} />, category: 'Finance' },
+  { id: 'tax-summary',         label: 'Tax summary',           description: 'Sales tax collected and payable per period.', icon: <FileText size={14} />, category: 'Finance' },
 ];
 
 // ─── Chart data ───────────────────────────────────────────────────────────────

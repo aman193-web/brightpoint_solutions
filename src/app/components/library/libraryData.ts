@@ -194,6 +194,93 @@ export const MASTER_PARTS: Part[] = [
   { id: 'pt-45', name: 'Manual Pull Station',            code: 'FA-PULL',      cat: 'Fire Alarm',         subcat: 'Devices',         mfr: 'Notifier',       unit: 'EA', price: 68.00, bomGroup: 'Device' },
   { id: 'pt-46', name: 'Smoke Detector Ceiling Mount',   code: 'FA-SMOKE',     cat: 'Fire Alarm',         subcat: 'Devices',         mfr: 'Notifier',       unit: 'EA', price: 52.00, bomGroup: 'Device' },
   { id: 'pt-47', name: 'FPLR Fire Alarm Cable 18/2',     code: 'FA-CBL-182',   cat: 'Fire Alarm',         subcat: 'Wire',            mfr: 'Genesis',        unit: 'LF', price: 0.58,  bomGroup: 'Wiring' },
+
+  // ── Second batch: backs the codes the wider assembly catalogue references ──
+  { id: 'pt-48', name: '1" EMT Conduit 10 ft',            code: 'EMT-100-10',  cat: 'Raceway & Fittings', subcat: 'EMT',             mfr: 'Allied',         unit: 'EA', price: 13.60, bomGroup: 'Raceway' },
+  { id: 'pt-49', name: '2" EMT Conduit 10 ft',            code: 'EMT-200-10',  cat: 'Raceway & Fittings', subcat: 'EMT',             mfr: 'Allied',         unit: 'EA', price: 31.40, bomGroup: 'Raceway' },
+  { id: 'pt-50', name: '1" EMT Coupling',                 code: 'EMT-CPL-100', cat: 'Raceway & Fittings', subcat: 'EMT',             mfr: 'Thomas & Betts', unit: 'EA', price: 0.94,  bomGroup: 'Raceway' },
+  { id: 'pt-51', name: '2" EMT Coupling',                 code: 'EMT-CPL-200', cat: 'Raceway & Fittings', subcat: 'EMT',             mfr: 'Thomas & Betts', unit: 'EA', price: 2.85,  bomGroup: 'Raceway' },
+  { id: 'pt-52', name: '1" EMT Connector D/S',            code: 'EMT-CON-100', cat: 'Raceway & Fittings', subcat: 'Connectors',      mfr: 'Thomas & Betts', unit: 'EA', price: 1.35,  bomGroup: 'Raceway' },
+  { id: 'pt-53', name: '1" One-Hole Strap',               code: 'STRAP-100',   cat: 'Raceway & Fittings', subcat: 'EMT',             mfr: 'Caddy',          unit: 'EA', price: 0.42,  bomGroup: 'Hardware' },
+  { id: 'pt-54', name: '2" Two-Hole Strap',               code: 'STRAP2-200',  cat: 'Raceway & Fittings', subcat: 'EMT',             mfr: 'Caddy',          unit: 'EA', price: 1.15,  bomGroup: 'Hardware' },
+  { id: 'pt-55', name: '2" RMC Conduit 10 ft',            code: 'RMC-200-10',  cat: 'Raceway & Fittings', subcat: 'Rigid',           mfr: 'Wheatland',      unit: 'EA', price: 74.00, bomGroup: 'Raceway' },
+  { id: 'pt-56', name: '2" Rigid Coupling',               code: 'RMC-CPL-200', cat: 'Raceway & Fittings', subcat: 'Rigid',           mfr: 'Wheatland',      unit: 'EA', price: 8.10,  bomGroup: 'Raceway' },
+  { id: 'pt-57', name: '2" PVC Sch 40 Conduit 10 ft',     code: 'PVC-200-10',  cat: 'Raceway & Fittings', subcat: 'PVC',             mfr: 'Cantex',         unit: 'EA', price: 16.20, bomGroup: 'Raceway' },
+  { id: 'pt-58', name: '2" PVC Coupling',                 code: 'PVC-CPL-200', cat: 'Raceway & Fittings', subcat: 'PVC',             mfr: 'Cantex',         unit: 'EA', price: 2.05,  bomGroup: 'Raceway' },
+  { id: 'pt-59', name: '2" PVC 90\xb0 Sweep',              code: 'PVC-90-200',  cat: 'Raceway & Fittings', subcat: 'PVC',             mfr: 'Cantex',         unit: 'EA', price: 11.40, bomGroup: 'Raceway' },
+  { id: 'pt-60', name: '\xbe" Liquidtight Flex',           code: 'LFMC-075',    cat: 'Raceway & Fittings', subcat: 'Flexible',        mfr: 'Electri-Flex',   unit: 'LF', price: 2.35,  bomGroup: 'Raceway' },
+  { id: 'pt-61', name: '2" Liquidtight Flex',             code: 'LFMC-200',    cat: 'Raceway & Fittings', subcat: 'Flexible',        mfr: 'Electri-Flex',   unit: 'LF', price: 7.80,  bomGroup: 'Raceway' },
+  { id: 'pt-62', name: '\xbe" Liquidtight Connector',      code: 'LFMC-CON-075', cat: 'Raceway & Fittings', subcat: 'Connectors',     mfr: 'Thomas & Betts', unit: 'EA', price: 3.60,  bomGroup: 'Raceway' },
+  { id: 'pt-63', name: 'Cable Tray 12" Ladder 10ft',      code: 'CT-12-L10',   cat: 'Raceway & Fittings', subcat: 'Cable Tray',      mfr: 'B-Line',         unit: 'EA', price: 96.00, bomGroup: 'Raceway' },
+  { id: 'pt-64', name: 'Tray Splice Plate Kit',           code: 'CT-SPL',      cat: 'Raceway & Fittings', subcat: 'Cable Tray',      mfr: 'B-Line',         unit: 'EA', price: 12.50, bomGroup: 'Raceway' },
+  { id: 'pt-65', name: 'Tray Bonding Jumper',             code: 'CT-BOND',     cat: 'Grounding',          subcat: 'Bonding',         mfr: 'Burndy',         unit: 'EA', price: 6.90,  bomGroup: 'Grounding' },
+
+  { id: 'pt-66', name: '10 THHN CU Stranded',             code: 'THHN-10-STR', cat: 'Wire & Cable',       subcat: 'THHN Copper',     mfr: 'Southwire',      unit: 'LF', price: 0.98,  bomGroup: 'Wiring' },
+  { id: 'pt-67', name: '3/0 THHN CU',                     code: 'THHN-30-CU',  cat: 'Wire & Cable',       subcat: 'THHN Copper',     mfr: 'Southwire',      unit: 'LF', price: 6.40,  bomGroup: 'Wiring' },
+  { id: 'pt-68', name: '2 AWG XHHW CU',                   code: 'XHHW-2-CU',   cat: 'Wire & Cable',       subcat: 'XHHW Copper',     mfr: 'Southwire',      unit: 'LF', price: 3.85,  bomGroup: 'Wiring' },
+  { id: 'pt-69', name: 'NM-B 14/2 with Ground',           code: 'NMB-142',     cat: 'Wire & Cable',       subcat: 'NM Cable',        mfr: 'Southwire',      unit: 'LF', price: 0.52,  bomGroup: 'Wiring' },
+  { id: 'pt-70', name: 'NM-B 12/2 with Ground',           code: 'NMB-122',     cat: 'Wire & Cable',       subcat: 'NM Cable',        mfr: 'Southwire',      unit: 'LF', price: 0.74,  bomGroup: 'Wiring' },
+  { id: 'pt-71', name: '4 AWG Ground CU',                 code: 'GND-4-CU',    cat: 'Grounding',          subcat: 'Conductors',      mfr: 'Southwire',      unit: 'LF', price: 2.15,  bomGroup: 'Grounding' },
+  { id: 'pt-72', name: '2 AWG Ground CU',                 code: 'GND-2-CU',    cat: 'Grounding',          subcat: 'Conductors',      mfr: 'Southwire',      unit: 'LF', price: 3.30,  bomGroup: 'Grounding' },
+  { id: 'pt-73', name: '6 AWG Ground CU',                 code: 'GND-6-CU',    cat: 'Grounding',          subcat: 'Conductors',      mfr: 'Southwire',      unit: 'LF', price: 1.42,  bomGroup: 'Grounding' },
+  { id: 'pt-74', name: 'Ground Rod 5/8" \xd7 8ft',         code: 'GRD-ROD-8',   cat: 'Grounding',          subcat: 'Electrodes',      mfr: 'Erico',          unit: 'EA', price: 18.40, bomGroup: 'Grounding' },
+  { id: 'pt-75', name: 'Ground Bar Kit',                  code: 'GND-BAR',     cat: 'Grounding',          subcat: 'Bonding',         mfr: 'Square D',       unit: 'EA', price: 22.00, bomGroup: 'Grounding' },
+
+  { id: 'pt-76', name: 'Panelboard 225A 42-Ckt MLO',      code: 'PNL-225-42',  cat: 'Distribution',       subcat: 'Panelboards',     mfr: 'Square D',       unit: 'EA', price: 1480.00, bomGroup: 'Primary Item' },
+  { id: 'pt-77', name: 'Load Center 200A 40-Ckt MB',      code: 'LC-200-40',   cat: 'Distribution',       subcat: 'Load Centers',    mfr: 'Square D',       unit: 'EA', price: 312.00, bomGroup: 'Primary Item' },
+  { id: 'pt-78', name: 'Circuit Breaker 2-Pole 30A',      code: 'PNL-BKR-230-30', cat: 'Distribution',    subcat: 'Breakers',        mfr: 'Square D',       unit: 'EA', price: 34.50, bomGroup: 'Device' },
+  { id: 'pt-79', name: 'Transformer 45kVA 480-208Y',      code: 'XFMR-45',     cat: 'Distribution',       subcat: 'Transformers',    mfr: 'Acme',           unit: 'EA', price: 2650.00, bomGroup: 'Primary Item' },
+  { id: 'pt-80', name: 'Fusible Disconnect 60A 3P 3R',    code: 'DISC-60-3R',  cat: 'Distribution',       subcat: 'Disconnects',     mfr: 'Square D',       unit: 'EA', price: 186.00, bomGroup: 'Primary Item' },
+  { id: 'pt-81', name: 'Non-Fused Disconnect 30A 3R',     code: 'DISC-30-NF-3R', cat: 'Distribution',     subcat: 'Disconnects',     mfr: 'Square D',       unit: 'EA', price: 74.00, bomGroup: 'Primary Item' },
+  { id: 'pt-82', name: 'Class RK5 Fuse 50A',              code: 'FUSE-RK5-50', cat: 'Distribution',       subcat: 'Fuses',           mfr: 'Bussmann',       unit: 'EA', price: 21.80, bomGroup: 'Device' },
+  { id: 'pt-83', name: 'Relay Panel 8-Zone',              code: 'RP-8Z',       cat: 'Controls',           subcat: 'Relay Panels',    mfr: 'Wattstopper',    unit: 'EA', price: 940.00, bomGroup: 'Primary Item' },
+
+  { id: 'pt-84', name: 'Astronomical Time Clock',         code: 'TC-ASTRO',    cat: 'Controls',           subcat: 'Time Clocks',     mfr: 'Intermatic',     unit: 'EA', price: 128.00, bomGroup: 'Controls' },
+  { id: 'pt-85', name: 'Photocell Button 120V',           code: 'PC-BTN-120',  cat: 'Controls',           subcat: 'Photocells',      mfr: 'Intermatic',     unit: 'EA', price: 14.60, bomGroup: 'Controls' },
+  { id: 'pt-86', name: '0-10V Wall Dimmer',               code: 'DIM-010V',    cat: 'Controls',           subcat: 'Dimmers',         mfr: 'Lutron',         unit: 'EA', price: 62.00, bomGroup: 'Controls' },
+  { id: 'pt-87', name: 'Ceiling Occupancy Sensor 360',    code: 'OCC-360-C',   cat: 'Controls',           subcat: 'Sensors',         mfr: 'Wattstopper',    unit: 'EA', price: 78.00, bomGroup: 'Controls' },
+  { id: 'pt-88', name: 'Sensor Power Pack 120/277V',      code: 'OCC-PP',      cat: 'Controls',           subcat: 'Sensors',         mfr: 'Wattstopper',    unit: 'EA', price: 46.00, bomGroup: 'Controls' },
+  { id: 'pt-89', name: 'Occupancy Sensor Dual-Tech',      code: 'OCC-DT-WB',   cat: 'Devices',            subcat: 'Occupancy Sensors', mfr: 'Wattstopper',  unit: 'EA', price: 58.00, bomGroup: 'Device' },
+
+  { id: 'pt-90', name: 'LED Troffer 2\xd72 25W 5000K',      code: 'LT-220-25W',  cat: 'Fixtures & Lamps',   subcat: 'Troffers',        mfr: 'Lithonia',       unit: 'EA', price: 39.80, bomGroup: 'Fixture' },
+  { id: 'pt-91', name: 'Linear LED Pendant 4ft 40W',      code: 'LP-4FT-40W',  cat: 'Fixtures & Lamps',   subcat: 'Linear',          mfr: 'Lithonia',       unit: 'EA', price: 128.00, bomGroup: 'Fixture' },
+  { id: 'pt-92', name: 'LED Wall Pack 40W',               code: 'WP-40W',      cat: 'Fixtures & Lamps',   subcat: 'Exterior',        mfr: 'Lithonia',       unit: 'EA', price: 96.00, bomGroup: 'Fixture' },
+  { id: 'pt-93', name: 'Emergency Battery Pack 10W',      code: 'EBP-10W',     cat: 'Fixtures & Lamps',   subcat: 'Emergency & Exit', mfr: 'Bodine',        unit: 'EA', price: 74.00, bomGroup: 'Emergency' },
+  { id: 'pt-94', name: 'Aircraft Cable Kit 10ft',         code: 'ACK-10',      cat: 'Hangers & Supports', subcat: 'Support Wire',    mfr: 'Gripple',        unit: 'EA', price: 8.90,  bomGroup: 'Mounting' },
+  { id: 'pt-95', name: 'Trapeze Hanger Kit',              code: 'TRAP-KIT',    cat: 'Hangers & Supports', subcat: 'Trapeze',         mfr: 'B-Line',         unit: 'EA', price: 16.40, bomGroup: 'Mounting' },
+  { id: 'pt-96', name: 'Strut Channel 1-5/8"',            code: 'STRUT-158',   cat: 'Hangers & Supports', subcat: 'Strut',           mfr: 'Unistrut',       unit: 'LF', price: 4.80,  bomGroup: 'Mounting' },
+  { id: 'pt-97', name: 'Rooftop Pipe Support Block',      code: 'RTS-BLK',     cat: 'Hangers & Supports', subcat: 'Rooftop',         mfr: 'MIRO',           unit: 'EA', price: 24.00, bomGroup: 'Mounting' },
+
+  { id: 'pt-98', name: 'Weatherproof Box 4"',             code: 'WP-BOX-4',    cat: 'Boxes & Covers',     subcat: 'Weatherproof',    mfr: 'Red Dot',        unit: 'EA', price: 9.20,  bomGroup: 'Box & Cover' },
+  { id: 'pt-99', name: 'Weatherproof In-Use Cover',       code: 'WP-IU-1G',    cat: 'Boxes & Covers',     subcat: 'Weatherproof',    mfr: 'Taymac',         unit: 'EA', price: 12.80, bomGroup: 'Box & Cover' },
+  { id: 'pt-100', name: 'FS Box 1-Gang',                  code: 'FS-1G',       cat: 'Boxes & Covers',     subcat: 'Metal Boxes',     mfr: 'Appleton',       unit: 'EA', price: 11.40, bomGroup: 'Box & Cover' },
+  { id: 'pt-101', name: 'New Work 1-Gang Plastic Box',    code: 'PB-1G-NW',    cat: 'Boxes & Covers',     subcat: 'Plastic Boxes',   mfr: 'Carlon',         unit: 'EA', price: 0.68,  bomGroup: 'Box & Cover' },
+  { id: 'pt-102', name: 'Low-Voltage Mud Ring 1-Gang',    code: 'LV-MR-1G',    cat: 'Boxes & Covers',     subcat: 'Plaster Rings',   mfr: 'Caddy',          unit: 'EA', price: 1.90,  bomGroup: 'Box & Cover' },
+
+  { id: 'pt-103', name: 'CAT6 Plenum Cable',              code: 'CAT6-PLEN',   cat: 'Low Voltage',        subcat: 'Data',            mfr: 'Belden',         unit: 'LF', price: 0.46,  bomGroup: 'Wiring' },
+  { id: 'pt-104', name: 'CAT6 Keystone Jack',             code: 'CAT6-KJ',     cat: 'Low Voltage',        subcat: 'Data',            mfr: 'Panduit',        unit: 'EA', price: 15.00, bomGroup: 'Device' },
+  { id: 'pt-105', name: 'Patch Panel Port CAT6',          code: 'CAT6-PP',     cat: 'Low Voltage',        subcat: 'Data',            mfr: 'Panduit',        unit: 'EA', price: 9.40,  bomGroup: 'Device' },
+  { id: 'pt-106', name: 'Faceplate 2-Port',               code: 'FP-2P',       cat: 'Low Voltage',        subcat: 'Data',            mfr: 'Panduit',        unit: 'EA', price: 3.20,  bomGroup: 'Device' },
+  { id: 'pt-107', name: 'Proximity Card Reader',          code: 'ACC-RDR',     cat: 'Low Voltage',        subcat: 'Security',        mfr: 'HID',            unit: 'EA', price: 184.00, bomGroup: 'Device' },
+  { id: 'pt-108', name: 'Door Position Switch',           code: 'ACC-DPS',     cat: 'Low Voltage',        subcat: 'Security',        mfr: 'GE',             unit: 'EA', price: 16.80, bomGroup: 'Device' },
+  { id: 'pt-109', name: 'Access Composite Cable',         code: 'ACC-COMP',    cat: 'Low Voltage',        subcat: 'Security',        mfr: 'Belden',         unit: 'LF', price: 1.34,  bomGroup: 'Wiring' },
+  { id: 'pt-110', name: 'Ceiling Speaker 8" 70V',         code: 'AV-SPK-8',    cat: 'Low Voltage',        subcat: 'AV',              mfr: 'Atlas',          unit: 'EA', price: 62.00, bomGroup: 'Device' },
+  { id: 'pt-111', name: 'Speaker Backcan',                code: 'AV-BACKCAN',  cat: 'Low Voltage',        subcat: 'AV',              mfr: 'Atlas',          unit: 'EA', price: 28.00, bomGroup: 'Device' },
+  { id: 'pt-112', name: 'Speaker Cable 16/2 Plenum',      code: 'AV-CBL-162',  cat: 'Low Voltage',        subcat: 'AV',              mfr: 'Belden',         unit: 'LF', price: 0.62,  bomGroup: 'Wiring' },
+  { id: 'pt-113', name: 'Thermostat Cable 18/8 Plenum',   code: 'TSTAT-188',   cat: 'Low Voltage',        subcat: 'Controls',        mfr: 'Genesis',        unit: 'LF', price: 0.84,  bomGroup: 'Wiring' },
+
+  { id: 'pt-114', name: 'Detector Base Addressable',      code: 'FA-BASE-A',   cat: 'Fire Alarm',         subcat: 'Devices',         mfr: 'Notifier',       unit: 'EA', price: 21.00, bomGroup: 'Device' },
+  { id: 'pt-115', name: 'Horn/Strobe 15-110cd Red',       code: 'FA-HS-110',   cat: 'Fire Alarm',         subcat: 'Notification',    mfr: 'Wheelock',       unit: 'EA', price: 74.00, bomGroup: 'Device' },
+  { id: 'pt-116', name: 'Notification Backbox',           code: 'FA-BB',       cat: 'Fire Alarm',         subcat: 'Notification',    mfr: 'Wheelock',       unit: 'EA', price: 12.40, bomGroup: 'Box & Cover' },
+  { id: 'pt-117', name: 'Duct Smoke Detector',            code: 'FA-DUCT',     cat: 'Fire Alarm',         subcat: 'Devices',         mfr: 'Notifier',       unit: 'EA', price: 196.00, bomGroup: 'Device' },
+  { id: 'pt-118', name: 'Remote Test Station',            code: 'FA-RTS',      cat: 'Fire Alarm',         subcat: 'Devices',         mfr: 'Notifier',       unit: 'EA', price: 58.00, bomGroup: 'Device' },
+
+  { id: 'pt-119', name: 'Duplex Receptacle 15A Resi',     code: 'DUP-15-RES',  cat: 'Devices',            subcat: 'Receptacles',     mfr: 'Leviton',        unit: 'EA', price: 1.65,  bomGroup: 'Device' },
+  { id: 'pt-120', name: 'GFCI Receptacle 20A',            code: 'GFCI-20A',    cat: 'Devices',            subcat: 'Receptacles',     mfr: 'Leviton',        unit: 'EA', price: 18.90, bomGroup: 'Device' },
+  { id: 'pt-121', name: 'Cable Staple 1/2"',              code: 'STAPLE-50',   cat: 'Fasteners',          subcat: 'Staples',         mfr: 'Gardner Bender', unit: 'EA', price: 0.06,  bomGroup: 'Hardware' },
+  { id: 'pt-122', name: 'Masonry Anchor 1/4"',            code: 'MA-25',       cat: 'Fasteners',          subcat: 'Anchors',         mfr: 'Hilti',          unit: 'EA', price: 0.58,  bomGroup: 'Hardware' },
+  { id: 'pt-123', name: 'Wood Screw #10',                 code: 'WS-10',       cat: 'Fasteners',          subcat: 'Screws',          mfr: 'Grip-Rite',      unit: 'EA', price: 0.09,  bomGroup: 'Hardware' },
+  { id: 'pt-124', name: 'Underground Warning Tape',       code: 'UG-TAPE',     cat: 'Fasteners',          subcat: 'Marking',         mfr: 'Presco',         unit: 'LF', price: 0.11,  bomGroup: 'Hardware' },
 ];
 
 /** Subcategories beneath each assembly category — the drill-down level. */
@@ -361,6 +448,269 @@ export const GENERIC_ASSEMBLIES: Assembly[] = [
   { id: 'gen-2', name: '100A Panel Feeder',     code: 'BPA-FD-401', desc: '100A feeder 3#3 + #6G in 1" EMT, indoor', status: 'recommended', subcat: 'Indoor', type: 'EMT with THHN', context: ['Indoor'], wiringMethod: 'EMT', source: 'system', isFavorite: false, bom: [] },
 ];
 
+/**
+ * Second seed batch — enough breadth that every category has something in it.
+ *
+ * Nine of the eleven categories used to be empty, so any screen that drilled
+ * past Fixtures or Devices demoed as "the catalogue import will populate it".
+ * These carry real component lists at plausible quantities, priced against
+ * MASTER_PARTS codes wherever a part for the job already exists.
+ */
+export const CATALOGUE_ASSEMBLIES: Assembly[] = [
+  // ── Fixtures ────────────────────────────────────────────────────────────
+  { id: 'fx-210', name: 'LED Troffer 2\xd72 Emergency', code: 'BPA-FX-210', desc: 'LED Troffer 2\xd72 30W with integral battery pack, ACT grid',
+    status: 'recommended', subcat: 'Troffers', type: '2\xd72 Drop-In', context: ['ACT Ceiling'], wiringMethod: 'MC-PCS 12/3', source: 'company', isFavorite: true,
+    bom: [
+      { id: 'b1', group: 'Fixture',   name: 'LED Troffer 2\xd72 25W 5000K', code: 'LT-220-25W',  qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Emergency', name: 'Emergency Battery Pack 10W',  code: 'EBP-10W',     qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Mounting',  name: 'T-Bar Mounting Clip Set',     code: 'MTC-TBAR-01', qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Wiring',    name: 'MC-PCS 12/3',                 code: 'MC-PCS-123',  qty: 8, baseQty: 8, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b5', group: 'Wiring',    name: 'MC Connector \xbd"',           code: 'MCC-50',      qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'fx-211', name: 'Linear Pendant 4ft', code: 'BPA-FX-211', desc: 'Linear LED pendant 4ft 40W on aircraft cable, open ceiling',
+    status: 'compatible', subcat: 'Linear', type: 'Pendant', context: ['Bar Joist – Open Ceiling'], wiringMethod: 'MC-PCS 12/3', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Fixture',  name: 'Linear LED Pendant 4ft 40W', code: 'LP-4FT-40W',  qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Mounting', name: 'Aircraft Cable Kit 10ft',    code: 'ACK-10',      qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Mounting', name: 'Beam Clamp 3/8"',            code: 'BC-375',      qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Wiring',   name: 'MC-PCS 12/3',                code: 'MC-PCS-123',  qty: 14, baseQty: 14, unit: 'LF', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'fx-212', name: 'Wall Pack 40W Outdoor', code: 'BPA-FX-212', desc: 'LED wall pack 40W with photocell, exterior masonry',
+    status: 'compatible', subcat: 'Linear', type: 'Wall Pack', context: ['Concrete Deck'], wiringMethod: 'EMT with THHN', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Fixture',  name: 'LED Wall Pack 40W',        code: 'WP-40W',      qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Controls', name: 'Photocell Button 120V',    code: 'PC-BTN-120',  qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Box & Cover', name: 'Weatherproof Box 4"',   code: 'WP-BOX-4',    qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Hardware', name: 'Masonry Anchor 1/4"',      code: 'MA-25',       qty: 4, baseQty: 4, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+
+  // ── Devices ─────────────────────────────────────────────────────────────
+  { id: 'dv-210', name: 'GFCI Receptacle 20A Weather', code: 'BPA-DV-210', desc: 'GFCI 20A with weatherproof in-use cover, exterior',
+    status: 'compatible', subcat: 'Receptacles', type: 'GFCI', context: ['Surface Mount on Concrete'], wiringMethod: 'EMT with THHN', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Device',      name: 'GFCI Receptacle 20A',            code: 'GFCI-20A',    qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Box & Cover', name: 'FS Box 1-Gang',                  code: 'FS-1G',       qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Box & Cover', name: 'Weatherproof In-Use Cover',      code: 'WP-IU-1G',    qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Wiring',      name: '12 THHN CU Stranded',            code: 'THHN-12-STR', qty: 30, baseQty: 30, unit: 'LF', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'dv-211', name: 'Occupancy Sensor Wall Switch', code: 'BPA-DV-211', desc: 'Dual-tech wall-box occupancy sensor, single-pole',
+    status: 'recommended', subcat: 'Occupancy Sensors', type: 'Wall Box', context: ['Metal Framing'], wiringMethod: 'MC 12/2', source: 'company', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Device',      name: 'Occupancy Sensor Dual-Tech', code: 'OCC-DT-WB', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Box & Cover', name: 'New Work 1-Gang Metal Box',  code: 'MB-1G-NW',  qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Box & Cover', name: 'Standard Cover Plate 1-Gang', code: 'CP-STD-1G', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Wiring',      name: 'MC 12/2',                    code: 'MC-122',    qty: 12, baseQty: 12, unit: 'LF', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'dv-212', name: 'Data Outlet CAT6 Double', code: 'BPA-DV-212', desc: 'Two-port CAT6 outlet, plenum cable to IDF',
+    status: 'compatible', subcat: 'Data Outlets', type: 'Double Port', context: ['Metal Framing'], wiringMethod: 'Measure Separately', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Device',      name: 'CAT6 Keystone Jack',       code: 'CAT6-KJ',   qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Device',      name: 'Faceplate 2-Port',         code: 'FP-2P',     qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Box & Cover', name: 'Low-Voltage Mud Ring 1-Gang', code: 'LV-MR-1G', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Wiring',      name: 'CAT6 Plenum Cable',        code: 'CAT6-PLEN', qty: 90, baseQty: 90, unit: 'LF', required: true, priceStatus: 'ok' },
+    ] },
+
+  // ── Raceway / Cable ─────────────────────────────────────────────────────
+  { id: 'rc-310', name: 'EMT 1" Home Run 4#12', code: 'BPA-RC-310', desc: '1" EMT with 4#12 THHN, one-hole strap every 10 ft',
+    status: 'recommended', subcat: 'EMT', type: 'Home Run', context: ['Concealed'], wiringMethod: 'EMT', source: 'company', isFavorite: true,
+    bom: [
+      { id: 'b1', group: 'Raceway', name: '1" EMT Conduit',        code: 'EMT-100-10',  qty: 100, baseQty: 100, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Wiring',  name: '12 THHN CU Stranded',   code: 'THHN-12-STR', qty: 420, baseQty: 420, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Raceway', name: '1" EMT Coupling',       code: 'EMT-CPL-100', qty: 10, baseQty: 10, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Raceway', name: '1" EMT Connector D/S',  code: 'EMT-CON-100', qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b5', group: 'Mounting', name: '1" One-Hole Strap',    code: 'STRAP-100',   qty: 10, baseQty: 10, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'rc-311', name: 'Liquidtight Flex Whip 6ft', code: 'BPA-RC-311', desc: '\xbe" liquidtight flexible whip to equipment, 3#10',
+    status: 'compatible', subcat: 'Flex', type: 'Equipment Whip', context: ['Exposed', 'Outdoor'], wiringMethod: 'Liquidtight Flexible Metal', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Raceway', name: '\xbe" Liquidtight Flex',      code: 'LFMC-075',    qty: 6, baseQty: 6, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Wiring',  name: '10 THHN CU Stranded',        code: 'THHN-10-STR', qty: 20, baseQty: 20, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Raceway', name: '\xbe" Liquidtight Connector', code: 'LFMC-CON-075', qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'rc-312', name: 'Cable Tray 12" Ladder Run', code: 'BPA-RC-312', desc: '12" ladder tray, 10 ft sections with trapeze hangers',
+    status: 'compatible', subcat: 'Cable Tray', type: 'Ladder 12"', context: ['Exposed'], wiringMethod: 'Measure Separately', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Raceway',  name: 'Cable Tray 12" Ladder 10ft', code: 'CT-12-L10', qty: 5, baseQty: 5, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Raceway',  name: 'Tray Splice Plate Kit',      code: 'CT-SPL',    qty: 4, baseQty: 4, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Mounting', name: 'Trapeze Hanger Kit',         code: 'TRAP-KIT',  qty: 5, baseQty: 5, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Grounding', name: 'Tray Bonding Jumper',       code: 'CT-BOND',   qty: 4, baseQty: 4, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+
+  // ── Feeders ─────────────────────────────────────────────────────────────
+  { id: 'fd-410', name: '200A Feeder 3#3/0 + #4G', code: 'BPA-FD-410', desc: '200A feeder in 2" EMT, indoor riser to distribution panel',
+    status: 'recommended', subcat: 'Riser', type: 'EMT with THHN', context: ['Indoor'], wiringMethod: 'EMT', source: 'company', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Raceway',   name: '2" EMT Conduit',        code: 'EMT-200-10',  qty: 80, baseQty: 80, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Wiring',    name: '3/0 THHN CU',           code: 'THHN-30-CU',  qty: 250, baseQty: 250, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Grounding', name: '4 AWG Ground CU',       code: 'GND-4-CU',    qty: 85, baseQty: 85, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Raceway',   name: '2" EMT Coupling',       code: 'EMT-CPL-200', qty: 8, baseQty: 8, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b5', group: 'Mounting',  name: '2" Two-Hole Strap',     code: 'STRAP2-200',  qty: 8, baseQty: 8, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'fd-411', name: 'Underground Feeder PVC 2"', code: 'BPA-FD-411', desc: '2" PVC Sch 40 direct burial with 3#2 XHHW, warning tape',
+    status: 'compatible', subcat: 'Underground', type: 'PVC Direct Burial', context: ['Underground'], wiringMethod: 'PVC Schedule 40', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Raceway',   name: '2" PVC Sch 40 Conduit', code: 'PVC-200-10',  qty: 120, baseQty: 120, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Wiring',    name: '2 AWG XHHW CU',         code: 'XHHW-2-CU',   qty: 380, baseQty: 380, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Raceway',   name: '2" PVC Coupling',       code: 'PVC-CPL-200', qty: 12, baseQty: 12, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Raceway',   name: '2" PVC 90\xb0 Sweep',    code: 'PVC-90-200',  qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b5', group: 'Hardware',  name: 'Underground Warning Tape', code: 'UG-TAPE',  qty: 120, baseQty: 120, unit: 'LF', required: false, priceStatus: 'ok' },
+    ] },
+
+  // ── Service Gear ────────────────────────────────────────────────────────
+  { id: 'sg-510', name: '42-Circuit Panelboard 225A', code: 'BPA-SG-510', desc: '225A MLO panelboard, 42 circuits, surface mounted with breakers',
+    status: 'recommended', subcat: 'Panelboards', type: '225A MLO', context: ['Indoor'], wiringMethod: 'EMT', source: 'company', isFavorite: true,
+    bom: [
+      { id: 'b1', group: 'Primary Item', name: 'Panelboard 225A 42-Ckt MLO', code: 'PNL-225-42',  qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Device',       name: 'Circuit Breaker 1-Pole 20A', code: 'PNL-BKR-120-20', qty: 30, baseQty: 30, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Device',       name: 'Circuit Breaker 2-Pole 30A', code: 'PNL-BKR-230-30', qty: 4, baseQty: 4, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Grounding',    name: 'Ground Bar Kit',            code: 'GND-BAR',     qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b5', group: 'Hardware',     name: 'Panel Mounting Strut Kit',  code: 'PNL-STRUT',   qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'sg-511', name: 'Fused Disconnect 60A 3P', code: 'BPA-SG-511', desc: '60A 3-pole fusible disconnect, NEMA 3R, with fuses',
+    status: 'compatible', subcat: 'Disconnects', type: '60A NEMA 3R', context: ['Outdoor'], wiringMethod: 'Liquidtight Flexible Metal', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Primary Item', name: 'Fusible Disconnect 60A 3P 3R', code: 'DISC-60-3R', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Device',       name: 'Class RK5 Fuse 50A',          code: 'FUSE-RK5-50', qty: 3, baseQty: 3, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Hardware',     name: 'Unistrut Rack Kit',           code: 'UNI-RACK',    qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'sg-512', name: 'Dry-Type Transformer 45kVA', code: 'BPA-SG-512', desc: '45kVA 480-208/120V dry-type transformer with secondary breaker',
+    status: 'compatible', subcat: 'Transformers', type: '45kVA 480-208Y', context: ['Indoor'], wiringMethod: 'EMT', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Primary Item', name: 'Transformer 45kVA 480-208Y', code: 'XFMR-45',    qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Raceway',      name: '2" Liquidtight Flex',        code: 'LFMC-200',   qty: 8, baseQty: 8, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Grounding',    name: '2 AWG Ground CU',            code: 'GND-2-CU',   qty: 25, baseQty: 25, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Hardware',     name: 'Vibration Isolation Pad',    code: 'VIB-PAD',    qty: 4, baseQty: 4, unit: 'EA', required: false, priceStatus: 'ok' },
+    ] },
+
+  // ── HVAC ────────────────────────────────────────────────────────────────
+  { id: 'hv-610', name: 'RTU Power Connection 30A', code: 'BPA-HV-610', desc: 'Rooftop unit connection — disconnect, whip, 3#10',
+    status: 'recommended', subcat: 'Unit Connections', type: 'RTU 30A', context: ['Outdoor'], wiringMethod: 'Liquidtight Flexible Metal', source: 'company', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Primary Item', name: 'Non-Fused Disconnect 30A 3R', code: 'DISC-30-NF-3R', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Raceway',      name: '\xbe" Liquidtight Flex',       code: 'LFMC-075',      qty: 6, baseQty: 6, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Wiring',       name: '10 THHN CU Stranded',         code: 'THHN-10-STR',   qty: 22, baseQty: 22, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Raceway',      name: '\xbe" Liquidtight Connector',  code: 'LFMC-CON-075',  qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b5', group: 'Hardware',     name: 'Rooftop Pipe Support Block',  code: 'RTS-BLK',       qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'hv-611', name: 'Thermostat Control Wiring', code: 'BPA-HV-611', desc: '18/8 thermostat cable from RTU to space, with plenum rating',
+    status: 'compatible', subcat: 'Controls', type: 'Thermostat', context: ['Concealed'], wiringMethod: 'Measure Separately', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Wiring',      name: 'Thermostat Cable 18/8 Plenum', code: 'TSTAT-188', qty: 75, baseQty: 75, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Box & Cover', name: 'Low-Voltage Mud Ring 1-Gang',  code: 'LV-MR-1G',  qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+
+  // ── Controls ────────────────────────────────────────────────────────────
+  { id: 'ct-710', name: '0–10V Dimming Zone', code: 'BPA-CT-710', desc: '0–10V dimming control run with wall dimmer, one zone',
+    status: 'recommended', subcat: 'Dimming', type: '0–10V Zone', context: ['ACT Ceiling'], wiringMethod: 'Measure Separately', source: 'company', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Controls',    name: '0-10V Wall Dimmer',        code: 'DIM-010V',   qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Controls',    name: '0-10V Control Wire 2C',    code: 'CW-010V',    qty: 120, baseQty: 120, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Box & Cover', name: 'New Work 1-Gang Metal Box', code: 'MB-1G-NW',  qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Box & Cover', name: 'Standard Cover Plate 1-Gang', code: 'CP-STD-1G', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'ct-711', name: 'Lighting Relay Panel 8-Zone', code: 'BPA-CT-711', desc: '8-relay lighting control panel with time clock and photocell input',
+    status: 'compatible', subcat: 'Relay Panels', type: '8-Zone', context: ['Indoor'], wiringMethod: 'EMT', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Primary Item', name: 'Relay Panel 8-Zone',     code: 'RP-8Z',      qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Controls',     name: 'Astronomical Time Clock', code: 'TC-ASTRO',  qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Controls',     name: 'Photocell Button 120V',   code: 'PC-BTN-120', qty: 1, baseQty: 1, unit: 'EA', required: false, priceStatus: 'ok' },
+      { id: 'b4', group: 'Wiring',       name: '12 THHN CU Stranded',     code: 'THHN-12-STR', qty: 60, baseQty: 60, unit: 'LF', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'ct-712', name: 'Ceiling Occupancy Sensor 360\xb0', code: 'BPA-CT-712', desc: '360\xb0 ceiling occupancy sensor with power pack, ACT grid',
+    status: 'compatible', subcat: 'Sensors', type: 'Ceiling 360\xb0', context: ['ACT Ceiling'], wiringMethod: 'MC 12/2', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Controls', name: 'Ceiling Occupancy Sensor 360', code: 'OCC-360-C', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Controls', name: 'Sensor Power Pack 120/277V',   code: 'OCC-PP',    qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Wiring',   name: 'MC 12/2',                      code: 'MC-122',   qty: 15, baseQty: 15, unit: 'LF', required: true, priceStatus: 'ok' },
+    ] },
+
+  // ── Fire Alarm ──────────────────────────────────────────────────────────
+  { id: 'fa-810', name: 'Smoke Detector Addressable', code: 'BPA-FA-810', desc: 'Addressable photoelectric smoke detector on ACT grid with base',
+    status: 'recommended', subcat: 'Initiating Devices', type: 'Photoelectric', context: ['ACT Ceiling'], wiringMethod: 'Measure Separately', source: 'company', isFavorite: true,
+    bom: [
+      { id: 'b1', group: 'Device',      name: 'Smoke Detector Ceiling Mount', code: 'FA-SMOKE',   qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Device',      name: 'Detector Base Addressable',    code: 'FA-BASE-A',  qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Box & Cover', name: '4" Square Box 1-1/2" Deep',    code: 'BOX-4SQ-150', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Wiring',      name: 'FPLR Fire Alarm Cable 18/2',   code: 'FA-CBL-182', qty: 45, baseQty: 45, unit: 'LF', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'fa-811', name: 'Horn/Strobe Wall Mount', code: 'BPA-FA-811', desc: 'Wall-mount horn/strobe 15-110cd with backbox, red',
+    status: 'compatible', subcat: 'Notification', type: 'Horn/Strobe', context: ['Metal Framing'], wiringMethod: 'Measure Separately', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Device',      name: 'Horn/Strobe 15-110cd Red', code: 'FA-HS-110', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Box & Cover', name: 'Notification Backbox',     code: 'FA-BB',     qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Wiring',      name: 'FPLR Fire Alarm Cable 18/2', code: 'FA-CBL-182', qty: 40, baseQty: 40, unit: 'LF', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'fa-812', name: 'Duct Detector with Sampling Tube', code: 'BPA-FA-812', desc: 'Duct smoke detector, sampling tube and remote test station',
+    status: 'compatible', subcat: 'Initiating Devices', type: 'Duct Detector', context: ['Bar Joist – Open Ceiling'], wiringMethod: 'Measure Separately', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Device', name: 'Duct Smoke Detector',       code: 'FA-DUCT',    qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Device', name: 'Sampling Tube 2ft',         code: 'FA-TUBE-2',  qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Device', name: 'Remote Test Station',       code: 'FA-RTS',     qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Wiring', name: 'FPLR Fire Alarm Cable 18/2', code: 'FA-CBL-182', qty: 60, baseQty: 60, unit: 'LF', required: true, priceStatus: 'ok' },
+    ] },
+
+  // ── Fire Pump ───────────────────────────────────────────────────────────
+  { id: 'fp-910', name: 'Fire Pump Controller Feed', code: 'BPA-FP-910', desc: 'Fire pump controller connection in RMC, 3#2 with #6 ground',
+    status: 'compatible', subcat: 'Feeders', type: 'RMC Feed', context: ['Indoor'], wiringMethod: 'Rigid Metal Conduit (RMC)', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Raceway',   name: '2" RMC Conduit',    code: 'RMC-200-10', qty: 40, baseQty: 40, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Wiring',    name: '2 AWG XHHW CU',     code: 'XHHW-2-CU',  qty: 130, baseQty: 130, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Grounding', name: '6 AWG Ground CU',   code: 'GND-6-CU',   qty: 45, baseQty: 45, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Raceway',   name: '2" Rigid Coupling', code: 'RMC-CPL-200', qty: 4, baseQty: 4, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+
+  // ── Residential ─────────────────────────────────────────────────────────
+  { id: 'rs-1010', name: 'Bedroom Receptacle Circuit', code: 'BPA-RS-1010', desc: '15A bedroom circuit — six receptacles, NM-B cable, wood framing',
+    status: 'recommended', subcat: 'Devices', type: 'Receptacle Circuit', context: ['Wood Framing'], wiringMethod: 'NM-B 14/2', source: 'company', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Device',      name: 'Duplex Receptacle 15A Resi', code: 'DUP-15-RES', qty: 6, baseQty: 6, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Box & Cover', name: 'New Work 1-Gang Plastic Box', code: 'PB-1G-NW',  qty: 6, baseQty: 6, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Box & Cover', name: 'Standard Cover Plate 1-Gang', code: 'CP-STD-1G', qty: 6, baseQty: 6, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Wiring',      name: 'NM-B 14/2 with Ground',       code: 'NMB-142',   qty: 140, baseQty: 140, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b5', group: 'Hardware',    name: 'Cable Staple 1/2"',           code: 'STAPLE-50', qty: 30, baseQty: 30, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'rs-1011', name: 'Kitchen GFCI Small Appliance', code: 'BPA-RS-1011', desc: 'Two 20A small-appliance branch circuits with GFCI protection',
+    status: 'compatible', subcat: 'Devices', type: 'GFCI Circuit', context: ['Wood Framing'], wiringMethod: 'NM-B 12/2', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Device',      name: 'GFCI Receptacle 20A',        code: 'GFCI-20A',  qty: 4, baseQty: 4, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Box & Cover', name: 'New Work 1-Gang Plastic Box', code: 'PB-1G-NW', qty: 4, baseQty: 4, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Wiring',      name: 'NM-B 12/2 with Ground',      code: 'NMB-122',   qty: 160, baseQty: 160, unit: 'LF', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'rs-1012', name: '200A Residential Load Center', code: 'BPA-RS-1012', desc: '200A main breaker load center, 40 circuit, with breakers',
+    status: 'compatible', subcat: 'Panels', type: '200A Main Breaker', context: ['Wood Framing'], wiringMethod: 'Measure Separately', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Primary Item', name: 'Load Center 200A 40-Ckt MB', code: 'LC-200-40',      qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Device',       name: 'Circuit Breaker 1-Pole 20A', code: 'PNL-BKR-120-20', qty: 20, baseQty: 20, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Device',       name: 'Circuit Breaker 2-Pole 30A', code: 'PNL-BKR-230-30', qty: 3, baseQty: 3, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Grounding',    name: 'Ground Rod 5/8" \xd7 8ft',    code: 'GRD-ROD-8',     qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+
+  // ── Low-Voltage Systems ─────────────────────────────────────────────────
+  { id: 'lv-1110', name: 'CAT6 Horizontal Drop', code: 'BPA-LV-1110', desc: 'Single CAT6 drop from IDF to workstation outlet, tested',
+    status: 'recommended', subcat: 'Data', type: 'CAT6 Drop', context: ['Metal Framing'], wiringMethod: 'Measure Separately', source: 'company', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Wiring',      name: 'CAT6 Plenum Cable',    code: 'CAT6-PLEN', qty: 110, baseQty: 110, unit: 'LF', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Device',      name: 'CAT6 Keystone Jack',   code: 'CAT6-KJ',   qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Device',      name: 'Patch Panel Port CAT6', code: 'CAT6-PP',  qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Box & Cover', name: 'Low-Voltage Mud Ring 1-Gang', code: 'LV-MR-1G', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'lv-1111', name: 'Card Reader Door Position', code: 'BPA-LV-1111', desc: 'Access control door — reader, strike, position switch, composite cable',
+    status: 'needs-review', subcat: 'Security', type: 'Access Door', context: ['Metal Framing'], wiringMethod: 'Measure Separately', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Device', name: 'Proximity Card Reader',       code: 'ACC-RDR',   qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Device', name: 'Electric Door Strike 12VDC',  code: 'ACC-STRK',  qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'missing' },
+      { id: 'b3', group: 'Device', name: 'Door Position Switch',        code: 'ACC-DPS',   qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b4', group: 'Wiring', name: 'Access Composite Cable',      code: 'ACC-COMP',  qty: 95, baseQty: 95, unit: 'LF', required: true, priceStatus: 'ok' },
+    ] },
+  { id: 'lv-1112', name: 'Ceiling Speaker Zone', code: 'BPA-LV-1112', desc: '70V ceiling speaker on a paging zone, ACT grid, with backcan',
+    status: 'compatible', subcat: 'AV', type: 'Ceiling Speaker', context: ['ACT Ceiling'], wiringMethod: 'Measure Separately', source: 'system', isFavorite: false,
+    bom: [
+      { id: 'b1', group: 'Device', name: 'Ceiling Speaker 8" 70V', code: 'AV-SPK-8',   qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b2', group: 'Device', name: 'Speaker Backcan',        code: 'AV-BACKCAN', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+      { id: 'b3', group: 'Wiring', name: 'Speaker Cable 16/2 Plenum', code: 'AV-CBL-162', qty: 70, baseQty: 70, unit: 'LF', required: true, priceStatus: 'ok' },
+    ] },
+];
+
 export const STATUS_CFG: Record<AssemblyStatus, { label: string; color: string; bg: string; symbol: string }> = {
   'recommended':      { label: 'Recommended',  color: '#16A34A', bg: '#F0FDF4', symbol: '★' },
   'compatible':       { label: 'Compatible',   color: '#1D4ED8', bg: '#EFF6FF', symbol: '✓' },
@@ -495,17 +845,43 @@ export const EXTRA_ASSEMBLIES: Assembly[] = [
 /** Every assembly across every category, keyed lookup for the cascade. */
 export const ALL_ASSEMBLIES: Assembly[] = [
   ...FIXTURE_ASSEMBLIES, ...DEVICE_ASSEMBLIES, ...GENERIC_ASSEMBLIES, ...EXTRA_ASSEMBLIES,
+  ...CATALOGUE_ASSEMBLIES,
 ];
 
 /** Which category a given assembly belongs to, derived from its code. */
 export function categoryOf(a: Assembly): CategoryCode {
-  if (a.code.includes('-FX-')) return 'BPC-01';
-  if (a.code.includes('-DV-')) return 'BPC-02';
-  if (a.code.includes('-RC-')) return 'BPC-03';
-  if (a.code.includes('-FD-')) return 'BPC-04';
-  if (a.code.includes('-FA-')) return 'BPC-08';
+  /*
+   * Every category has a code segment now. It used to stop after five, and the
+   * fallback silently filed a switchgear or fire-pump assembly under Fixtures —
+   * which looks like data loss and is worse, because the row is *somewhere*.
+   * A code segment added here also has to exist in `ASSEMBLY_CODE_SEGMENT`.
+   */
+  for (const [seg, code] of Object.entries(ASSEMBLY_CODE_SEGMENT)) {
+    if (a.code.includes(`-${seg}-`)) return code;
+  }
+  // Saved from Build Mode: BPA-03-101 carries the category number directly.
+  const numbered = a.code.match(/BPA-(\d{2})-/);
+  if (numbered) {
+    const guess = `BPC-${numbered[1]}` as CategoryCode;
+    if (CATEGORIES.some((c) => c.code === guess)) return guess;
+  }
   return 'BPC-01';
 }
+
+/** Assembly-code segment → category. The one place the mapping is written down. */
+export const ASSEMBLY_CODE_SEGMENT: Record<string, CategoryCode> = {
+  FX: 'BPC-01',
+  DV: 'BPC-02',
+  RC: 'BPC-03',
+  FD: 'BPC-04',
+  SG: 'BPC-05',
+  HV: 'BPC-06',
+  CT: 'BPC-07',
+  FA: 'BPC-08',
+  FP: 'BPC-09',
+  RS: 'BPC-10',
+  LV: 'BPC-11',
+};
 
 // ─── Parametric assembly engine ───────────────────────────────────────────────
 
@@ -518,11 +894,22 @@ export interface FixtureConfig {
   app: string;       // installation context — also the browse filter
   type: string;
   mount: string;
+  /**
+   * Drop below the structure, in feet. Only meaningful on a suspended or
+   * pendant mount; ignored by the others, which is why it is optional rather
+   * than a field every fixture has to answer.
+   */
+  drop?: string;
   wiring: string;
   run: string;       // LF
   waste: string;     // %
   dimming: string;
   emergency: string;
+}
+
+/** Mounts where a drop length is a real question rather than noise. */
+export function mountHasDrop(mount: string): boolean {
+  return /Suspension|Pendant|Cable/i.test(mount);
 }
 
 export interface DeviceConfig {
@@ -536,12 +923,37 @@ export interface DeviceConfig {
   cover: string;
 }
 
-export type AssemblyConfig = FixtureConfig | DeviceConfig;
+/**
+ * A conduit or cable run.
+ *
+ * Answered as one workflow rather than assembled by hunting a parts list: the
+ * estimator says what raceway, what size, how many conductors of what, how it
+ * is attached and how long the run is — and the fittings, couplings and
+ * supports that necessarily follow are derived rather than searched for.
+ */
+export interface RacewayConfig {
+  kind: 'raceway';
+  app: string;
+  /** Raceway / conduit type — EMT, rigid, PVC, flexible, surface raceway. */
+  raceway: string;
+  /** Trade size. */
+  size: string;
+  /** How many current-carrying conductors are pulled in. */
+  conductors: string;
+  /** Conductor type and gauge. */
+  conductor: string;
+  /** Structure / attachment type. */
+  support: string;
+  run: string;       // LF
+  waste: string;     // %
+}
+
+export type AssemblyConfig = FixtureConfig | DeviceConfig | RacewayConfig;
 
 export const FIXTURE_TYPES  = ['LED Troffer 2\xd74', 'LED Troffer 2\xd72', 'LED Emergency Troffer', 'Recessed Downlight', 'Linear Pendant', 'Surface-Mounted Fixture'];
 export const FIXTURE_MOUNTS = ['T-Bar Drop-In', 'Surface Mount to Joist Framing', 'Suspension Cable and Beam Clamp', 'Concrete Anchor Mount'];
 export const FIXTURE_WIRING = ['MC-PCS 12/3', 'MC 12/2', 'AC 12/2', 'EMT with THHN', 'Measure Separately'];
-export const DIMMING_OPTIONS   = ['No dimming', '0\u201310V dimming', 'DALI control'];
+export const DIMMING_OPTIONS   = ['None', '0\u201310V dimming', 'DALI control'];
 export const EMERGENCY_OPTIONS = ['None', 'Constant hot leg', 'Emergency battery pack'];
 
 export const DEVICE_TYPES  = ['Duplex Receptacle 20A', 'GFCI Receptacle 20A', 'Hospital-Grade Receptacle 20A', 'Single Receptacle', 'USB Receptacle', 'Switch', 'Occupancy Sensor'];
@@ -549,6 +961,94 @@ export const DEVICE_GRADES = ['Commercial', 'Hospital Grade', 'Residential', 'We
 export const DEVICE_WIRING = ['MC 12/2', 'HCF MC 12/2', 'EMT with THHN', 'Measure Separately'];
 export const DEVICE_BOXES  = ['New Work 1-Gang Metal Box', 'New Work 1-Gang Plastic Box', 'FS Box', '4-inch Square Box with Plaster Ring'];
 export const DEVICE_COVERS = ['Standard Cover', 'Stainless-Steel Cover', 'Weatherproof In-Use Cover'];
+
+export const RACEWAY_TYPES = [
+  'EMT',
+  'IMC',
+  'Rigid Metal Conduit (RMC)',
+  'PVC Schedule 40',
+  'Flexible Metal Conduit',
+  'Liquidtight Flexible Metal',
+  'Surface Raceway',
+  'MC Cable — no raceway',
+];
+export const RACEWAY_SIZES = ['1/2"', '3/4"', '1"', '1-1/4"', '1-1/2"', '2"'];
+export const CONDUCTOR_COUNTS = ['2', '3', '4', '5', '6'];
+export const CONDUCTOR_TYPES = [
+  'THHN 14 AWG', 'THHN 12 AWG', 'THHN 10 AWG', 'THHN 8 AWG', 'THHN 6 AWG', 'XHHW 4 AWG',
+];
+export const RACEWAY_SUPPORTS = [
+  'One-Hole Strap',
+  'Two-Hole Strap',
+  'Conduit Hanger (Minerallac)',
+  'Strut and Strap',
+  'Beam Clamp',
+  'Concrete Anchor',
+  'Wood Screw',
+];
+
+/** The termination fitting a raceway type takes at each end. */
+export function racewayConnector(raceway: string): { name: string; code: string } | null {
+  if (/^EMT/.test(raceway)) return { name: 'EMT Connector D/S', code: 'EMT-CON-050' };
+  if (/RMC|IMC|Rigid/i.test(raceway)) return { name: 'Rigid Conduit Connector', code: 'RMCC-50' };
+  if (/PVC/i.test(raceway)) return { name: 'PVC Terminal Adapter', code: 'PVC-TA-050' };
+  if (/Flexible|Liquidtight/i.test(raceway)) return { name: 'Flex Connector', code: 'FLEX-CON-050' };
+  if (/MC Cable/i.test(raceway)) return { name: 'MC Connector \xbd"', code: 'MCC-50' };
+  return null;
+}
+
+/** The coupling a raceway type takes between lengths. Surface raceway uses none. */
+export function racewayCoupling(raceway: string): { name: string; code: string } | null {
+  if (/^EMT/.test(raceway)) return { name: 'EMT Coupling', code: 'EMT-CPL-050' };
+  if (/RMC|IMC|Rigid/i.test(raceway)) return { name: 'Rigid Coupling', code: 'RMC-CPL-050' };
+  if (/PVC/i.test(raceway)) return { name: 'PVC Coupling', code: 'PVC-CPL-050' };
+  return null;
+}
+
+/** The fastener a support method needs to reach the structure. */
+export function supportAnchor(support: string): { name: string; code: string } | null {
+  if (/Concrete Anchor/i.test(support)) return { name: 'Concrete Anchor 1/4"', code: 'CA-25' };
+  if (/Beam Clamp/i.test(support)) return { name: 'Beam Clamp 3/8"', code: 'BC-375' };
+  if (/Wood Screw/i.test(support)) return { name: 'Wood Screw #10', code: 'WS-10' };
+  if (/Strut/i.test(support)) return { name: 'Strut Channel 1-5/8"', code: 'STRUT-158' };
+  return null;
+}
+
+/**
+ * The termination fitting a wiring method actually takes.
+ *
+ * This used to be a fixed MC connector on every fixture, which is wrong the
+ * moment the run is EMT or rigid — and in a Class I location an ordinary MC
+ * connector is exactly the part that must not appear. MC and AC keep the
+ * connector they always had, so existing assemblies are unchanged.
+ */
+export function connectorFor(wiring: string): { name: string; code: string } {
+  if (/rigid|\bRMC\b|\bGRC\b/i.test(wiring)) return { name: 'Rigid Conduit Connector \xbd"', code: 'RMCC-50' };
+  if (/\bEMT\b/i.test(wiring)) return { name: 'EMT Connector \xbd"', code: 'EMTC-50' };
+  return { name: 'MC Connector \xbd"', code: 'MCC-50' };
+}
+
+/**
+ * Which configuration form a category takes.
+ *
+ * The parametric engine models two families in depth — fixtures and devices —
+ * because those are the two the client specified and the two whose component
+ * lists genuinely follow from a handful of answers. Every other category is
+ * assembled from parts the estimator picks, which is why they map to
+ * `generic`: the guided steps still apply, but there is no parametric core to
+ * derive. This is a statement about coverage, not a second engine.
+ */
+export type BuildKind = 'fixture' | 'device' | 'raceway' | 'generic';
+
+export function kindForCategory(code: CategoryCode): BuildKind {
+  if (code === 'BPC-01') return 'fixture';
+  if (code === 'BPC-02') return 'device';
+  // Raceway / cable runs answer a different set of questions entirely.
+  if (code === 'BPC-03') return 'raceway';
+  // Residential is device-shaped: receptacles, switches, boxes and covers.
+  if (code === 'BPC-10') return 'device';
+  return 'generic';
+}
 
 export function wasteAdjustedLF(run: string, waste: string): number {
   const runLF = parseFloat(run) || 0;
@@ -561,6 +1061,92 @@ export function wasteAdjustedLF(run: string, waste: string): number {
  * both the guided Builder and the unified Workbench, so the two never drift.
  */
 export function deriveBom(cfg: AssemblyConfig): BOMItem[] {
+  /*
+   * Raceway runs.
+   *
+   * Quantities are simple, stated arithmetic — a coupling every ten feet, a
+   * support every ten feet, a connector at each end, conductors at count ×
+   * length. Every row carries its own `calc` string so the estimator can read
+   * the rule rather than trust it.
+   *
+   * Deliberately NO conduit fill: how many conductors of what size fit in what
+   * trade size is a code calculation, and inventing one here would be a wrong
+   * answer wearing the costume of a right one. The count is the estimator's.
+   */
+  if (cfg.kind === 'raceway') {
+    const calcLF = wasteAdjustedLF(cfg.run, cfg.waste);
+    const runLF = parseFloat(cfg.run) || 0;
+    const conductors = parseInt(cfg.conductors, 10) || 0;
+    /** One every 10 ft, and never fewer than one on a run that exists. */
+    const per10 = runLF > 0 ? Math.max(1, Math.ceil(runLF / 10)) : 0;
+    const conn = racewayConnector(cfg.raceway);
+    const cpl = racewayCoupling(cfg.raceway);
+    const anchor = supportAnchor(cfg.support);
+    const isCable = /MC Cable/i.test(cfg.raceway);
+
+    const rows: BOMItem[] = [
+      {
+        id: 'g1', group: 'Raceway',
+        name: `${cfg.size} ${cfg.raceway}`, code: 'RWY-CFG',
+        qty: calcLF, baseQty: calcLF, unit: 'LF',
+        calc: `${cfg.run} LF + ${cfg.waste}% waste = ${calcLF} LF`,
+        required: true, priceStatus: 'ok',
+      },
+    ];
+
+    if (conductors > 0) {
+      const wireLF = +(calcLF * conductors).toFixed(1);
+      rows.push({
+        id: 'g2', group: 'Wiring',
+        name: cfg.conductor, code: 'COND-CFG',
+        qty: wireLF, baseQty: wireLF, unit: 'LF',
+        calc: `${conductors} conductors \xd7 ${calcLF} LF = ${wireLF} LF`,
+        required: true, priceStatus: 'ok',
+      });
+    }
+
+    if (cpl && per10 > 0) {
+      rows.push({
+        id: 'g3', group: 'Raceway',
+        name: `${cfg.size} ${cpl.name}`, code: cpl.code,
+        qty: per10, baseQty: per10, unit: 'EA',
+        calc: `1 per 10 LF of ${runLF} LF = ${per10}`,
+        required: true, priceStatus: 'ok',
+      });
+    }
+
+    if (conn) {
+      rows.push({
+        id: 'g4', group: 'Raceway',
+        name: `${cfg.size} ${conn.name}`, code: conn.code,
+        qty: 2, baseQty: 2, unit: 'EA',
+        calc: 'One at each end of the run',
+        required: true, priceStatus: 'ok',
+      });
+    }
+
+    if (per10 > 0 && !isCable) {
+      rows.push({
+        id: 'g5', group: 'Mounting',
+        name: `${cfg.size} ${cfg.support}`, code: 'SUP-CFG',
+        qty: per10, baseQty: per10, unit: 'EA',
+        calc: `1 per 10 LF of ${runLF} LF = ${per10}`,
+        required: true, priceStatus: 'ok',
+      });
+      if (anchor) {
+        rows.push({
+          id: 'g6', group: 'Hardware',
+          name: anchor.name, code: anchor.code,
+          qty: per10, baseQty: per10, unit: 'EA',
+          calc: `One per support (${per10})`,
+          required: true, priceStatus: 'ok',
+        });
+      }
+    }
+
+    return rows;
+  }
+
   if (cfg.kind === 'fixture') {
     const calcLF = wasteAdjustedLF(cfg.run, cfg.waste);
     return [
@@ -568,14 +1154,33 @@ export function deriveBom(cfg: AssemblyConfig): BOMItem[] {
       ...(cfg.mount === 'T-Bar Drop-In'
         ? [{ id: 'g2', group: 'Mounting', name: 'T-Bar Mounting Clip Set', code: 'MTC-TBAR-01', qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' as const }]
         : [{ id: 'g2', group: 'Mounting', name: 'Surface Mount Bracket',   code: 'SMB-GEN',     qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' as const }]),
-      cfg.wiring !== 'Measure Separately'
+      !(cfg.wiring === 'Measure Separately' || cfg.wiring === 'No Wire')
         ? { id: 'g3', group: 'Wiring', name: cfg.wiring, code: 'WIRE-CFG', qty: calcLF, baseQty: calcLF, unit: 'LF', calc: `${cfg.run} LF + ${cfg.waste}% waste = ${calcLF} LF`, required: true, priceStatus: 'ok' as const }
-        : { id: 'g3', group: 'Wiring', name: 'Wire measured separately', code: 'NOTE-SEP', qty: 1, unit: 'NOTE', required: false, priceStatus: 'ok' as const },
-      { id: 'g4', group: 'Wiring',    name: 'MC Connector \xbd"', code: 'MCC-50',  qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
+        : {
+          id: 'g3', group: 'Wiring',
+          name: cfg.wiring === 'No Wire' ? 'No wire in this assembly' : 'Wire measured separately',
+          code: cfg.wiring === 'No Wire' ? 'NOTE-NOWIRE' : 'NOTE-SEP',
+          qty: 1, unit: 'NOTE', required: false, priceStatus: 'ok' as const,
+        },
+      { id: 'g4', group: 'Wiring',    name: connectorFor(cfg.wiring).name, code: connectorFor(cfg.wiring).code, qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' },
       { id: 'g5', group: 'Wiring',    name: 'Wire Connector',     code: 'WC-MARR', qty: 3, baseQty: 3, unit: 'EA', required: true, priceStatus: 'ok' },
       ...(cfg.dimming === '0\u201310V dimming' ? [{ id: 'g6', group: 'Controls',  name: '0-10V Control Wire 2C', code: 'CW-010V', qty: calcLF, baseQty: calcLF, unit: 'LF', required: true, priceStatus: 'ok' as const }] : []),
       ...(cfg.dimming === 'DALI control'   ? [{ id: 'g6', group: 'Controls',  name: 'DALI Control Cable',    code: 'CW-DALI', qty: calcLF, baseQty: calcLF, unit: 'LF', required: true, priceStatus: 'ok' as const }] : []),
       ...(cfg.emergency === 'Emergency battery pack' ? [{ id: 'g7', group: 'Emergency', name: 'Emergency Battery Pack', code: 'EBP-GEN', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' as const }] : []),
+      /*
+       * A suspended fixture needs cable for the drop, at both hanging points.
+       * Derived from the drop length rather than asked for separately, so the
+       * quantity cannot disagree with the mounting the estimator chose.
+       */
+      ...(mountHasDrop(cfg.mount) && (parseFloat(cfg.drop ?? '0') || 0) > 0
+        ? [{
+          id: 'g9', group: 'Mounting', name: 'Aircraft Cable Kit \u2014 fixture drop', code: 'ACK-DROP',
+          qty: +((parseFloat(cfg.drop ?? '0') || 0) * 2).toFixed(1),
+          baseQty: +((parseFloat(cfg.drop ?? '0') || 0) * 2).toFixed(1),
+          unit: 'LF', calc: `${cfg.drop} ft drop \u00d7 2 hanging points`,
+          required: true, priceStatus: 'ok' as const,
+        }]
+        : []),
       { id: 'g8', group: 'Grounding', name: 'Equipment Ground #12', code: 'EGC-12', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
     ];
   }
@@ -587,7 +1192,7 @@ export function deriveBom(cfg: AssemblyConfig): BOMItem[] {
     { id: 'g2', group: 'Box & Cover', name: cfg.box,   code: 'BOX-CFG',   qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
     { id: 'g3', group: 'Box & Cover', name: cfg.cover, code: 'COVER-CFG', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
     { id: 'g4', group: 'Wiring',      name: isHospital ? 'HCF MC 12/2' : cfg.wiring, code: isHospital ? 'HCF-MC-122' : 'WIRE-CFG', qty: calcLF, baseQty: calcLF, unit: 'LF', calc: `${cfg.run} LF`, required: true, priceStatus: 'ok' },
-    { id: 'g5', group: 'Wiring',      name: 'MC Connector \xbd"', code: 'MCC-50', qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
+    { id: 'g5', group: 'Wiring',      name: connectorFor(isHospital ? 'HCF MC 12/2' : cfg.wiring).name, code: connectorFor(isHospital ? 'HCF MC 12/2' : cfg.wiring).code, qty: 1, baseQty: 1, unit: 'EA', required: true, priceStatus: 'ok' },
     ...(cfg.app === 'Metal Framing' ? [{ id: 'g6', group: 'Hardware', name: 'Self-Drilling Screw #8', code: 'SDS-8-50', qty: 4, baseQty: 4, unit: 'EA', required: true, priceStatus: 'ok' as const }] : []),
     ...(cfg.app === 'Masonry'       ? [{ id: 'g6', group: 'Hardware', name: 'Concrete Anchor \xbc"',  code: 'CA-25',    qty: 2, baseQty: 2, unit: 'EA', required: true, priceStatus: 'ok' as const }] : []),
   ];
@@ -595,6 +1200,12 @@ export function deriveBom(cfg: AssemblyConfig): BOMItem[] {
 
 /** Default display name for a configuration. */
 export function configName(cfg: AssemblyConfig): string {
+  if (cfg.kind === 'raceway') {
+    const wire = (parseInt(cfg.conductors, 10) || 0) > 0
+      ? ` \u2013 ${cfg.conductors}\xd7${cfg.conductor.replace(/^THHN /, '')}`
+      : '';
+    return `${cfg.size} ${cfg.raceway}${wire}`;
+  }
   return cfg.kind === 'fixture' ? `${cfg.type} \u2013 ${cfg.app}` : `${cfg.type} \u2013 ${cfg.grade}`;
 }
 
@@ -631,9 +1242,10 @@ export function configFromAssembly(a: Assembly): AssemblyConfig {
       : has('CA-25') ? 'Concrete Anchor Mount'
       : 'Surface Mount to Joist Framing',
     wiring: a.wiringMethod,
+    drop: a.bom.find((i) => i.code === 'ACK-DROP')?.calc?.match(/^([\d.]+) ft drop/)?.[1] ?? '',
     run: runFromCalc ?? String(wiringRow?.baseQty ?? wiringRow?.qty ?? 8),
     waste: wasteFromCalc ?? '5',
-    dimming: has('CW-DALI') ? 'DALI control' : has('CW-010V') ? '0\u201310V dimming' : 'No dimming',
+    dimming: has('CW-DALI') ? 'DALI control' : has('CW-010V') ? '0\u201310V dimming' : 'None',
     emergency: has('EBP-GEN') ? 'Emergency battery pack' : has('CHW-122') ? 'Constant hot leg' : 'None',
   };
 }

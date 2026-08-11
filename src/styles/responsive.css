@@ -127,6 +127,39 @@
   flex-wrap: wrap;
 }
 
+/*
+  Build Mode's filter chips share the one toolbar row. They scroll rather than
+  wrap so the row keeps its height; the scrollbar itself is hidden because a
+  visible one inside a toolbar reads as a broken control. The fade on the
+  right edge is what says there is more, and the Filters button's count badge
+  is what guarantees nothing is silently lost.
+*/
+.bp-filter-chips {
+  scrollbar-width: none;
+  /* A hard cut looks like a rendering fault; a fade reads as "there is more". */
+  mask-image: linear-gradient(to right, black calc(100% - 20px), transparent);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 20px), transparent);
+}
+.bp-filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+  Parts rail rows are drag sources. The grip is the standing signal; hover adds
+  a dashed outline so the row reads as "pick me up" before anyone tries it.
+*/
+.bp-part-row:hover {
+  background: #F9FAFB;
+  outline: 1px dashed #BFDBFE;
+  outline-offset: -2px;
+}
+.bp-part-row:hover .lucide-grip-vertical {
+  color: #2563EB;
+}
+.bp-part-row:active {
+  cursor: grabbing;
+}
+
 @media (max-width: 768px) {
   .bp-metrics {
     gap: 12px 18px;
@@ -263,4 +296,43 @@
     border-left: none !important;
     border-top: 1px solid #374151;
   }
+}
+
+/*
+  The "except" shortcut on a scope option. Present on every row it reads as
+  clutter, so it only surfaces on the row the pointer is on — and stays reachable
+  by keyboard, which visibility:hidden would not allow.
+*/
+.bp-scope-opt .lucide,
+.bp-scope-opt button {
+  opacity: 0;
+  transition: opacity 90ms ease-out;
+}
+.bp-scope-opt:hover,
+.bp-scope-opt:focus-within {
+  background: #F9FAFB;
+}
+.bp-scope-opt:hover button,
+.bp-scope-opt:focus-within button {
+  opacity: 1;
+}
+
+/*
+  Project Breakdown is a board: one scrolling row of fixed-width columns. The
+  scrollbar is left visible here — unlike the toolbar chip strip, a board is
+  expected to scroll and hiding the affordance would leave later groups
+  undiscoverable.
+*/
+.bp-breakdown-board {
+  scrollbar-width: thin;
+}
+.bp-breakdown-board::-webkit-scrollbar {
+  height: 8px;
+}
+.bp-breakdown-board::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 4px;
+}
+.bp-breakdown-board::-webkit-scrollbar-track {
+  background: transparent;
 }

@@ -8,10 +8,12 @@ import {
 import { toast } from 'sonner';
 import {
   MarkupSet, MARKUP_FIELDS, COMPANY_DEFAULTS, setCompanyDefault, CREW_TEMPLATES,
+  crewRate, money,
 } from '../../lib/costing';
 import {
   UserRole, ROLE_CFG, ROLE_ORDER, PERMISSIONS, PERMISSION_GROUPS, FIELD_USER_SUMMARY,
 } from '../../lib/roles';
+import { TAX_REGIONS, RATES_AS_OF, findRegion } from '../../lib/taxRegions';
 import { PartsLibraryTab } from './PartsLibraryTab';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -756,21 +758,21 @@ function MarkupTab() {
       </SectionCard>
 
       <SectionCard title="Tax defaults">
-        <FieldRow label="Default tax region" hint="Sets the sales tax rate above when changed">
+        {/* Same 50-state table the Bid Builder reads, so the two cannot diverge. */}
+        <FieldRow label="Default tax region" hint={`Sets the sales tax rate above. Published rates as of ${RATES_AS_OF}.`}>
           <select
-            defaultValue="QC"
+            defaultValue="PA"
             onChange={(e) => {
-              const rates: Record<string, number> = { QC: 14.975, TX: 8.25, CA: 7.25, FL: 6, NY: 4 };
-              const rate = rates[e.target.value];
-              if (rate != null) setDraft((prev) => ({ ...prev, taxRate: rate }));
+              const region = findRegion(e.target.value);
+              if (region) setDraft((prev) => ({ ...prev, taxRate: region.typicalCombined }));
             }}
-            style={{ height: 34, padding: '0 10px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, background: 'white', outline: 'none' }}
+            style={{ height: 34, padding: '0 10px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, background: 'white', outline: 'none', maxWidth: 320 }}
           >
-            <option value="QC">QC — GST + QST 14.975%</option>
-            <option value="TX">TX — Sales tax 8.25%</option>
-            <option value="CA">CA — Sales tax 7.25%</option>
-            <option value="FL">FL — Sales tax 6.0%</option>
-            <option value="NY">NY — Sales tax 4.0% + local</option>
+            {TAX_REGIONS.map((r) => (
+              <option key={r.code} value={r.code}>
+                {r.name} — {r.typicalCombined.toFixed(2)}% typical
+              </option>
+            ))}
           </select>
         </FieldRow>
         <FieldRow label="Taxable buckets">
@@ -802,8 +804,13 @@ function MarkupTab() {
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {t.rows.map((r) => (
-                  <span key={r.role} style={{ fontSize: 11, color: '#374151', background: '#F9FAFB', border: '1px solid #E5E7EB', padding: '2px 8px', borderRadius: 9999 }}>
-                    {r.role} {r.allocation}% · ${r.hourlyCost}/hr
+                  <span
+                    key={r.role}
+                    /* The loaded rate is what the estimator compares; the build-up sits in the tooltip. */
+                    title={`Base $${r.baseRate}/hr + ${r.burdenPct}% burden${r.fringeDollars > 0 ? ` + $${r.fringeDollars} fringe @ ${r.fringePct}%` : ' · no fringe'}`}
+                    style={{ fontSize: 11, color: '#374151', background: '#F9FAFB', border: '1px solid #E5E7EB', padding: '2px 8px', borderRadius: 9999 }}
+                  >
+                    {r.role} {r.allocation}% · {money(crewRate({ ...r, id: r.role }).loadedRate)}/hr
                   </span>
                 ))}
               </div>
