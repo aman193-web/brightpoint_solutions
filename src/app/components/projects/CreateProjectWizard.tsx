@@ -392,7 +392,7 @@ export function CreateProjectWizard({ onComplete, onCancel }: CreateProjectWizar
               <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 20 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 14 }}>Commercial defaults</p>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-                  <Field label="Tax rate (GST %)">
+                  <Field label="Sales tax rate (%)">
                     <div style={{ position: "relative" }}>
                       <input value={taxRate} onChange={(e) => setTaxRate(e.target.value)} style={{ ...inputStyle, paddingRight: 28, fontFamily: "IBM Plex Mono, monospace" }} />
                       <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "#6B7280" }}>%</span>

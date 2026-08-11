@@ -4,7 +4,8 @@ import { ChevronLeft, MoreHorizontal } from "lucide-react";
 
 /**
  * Project-level header shared by every project-scoped screen
- * (Overview, Drawings, Takeoff, Pricing, Bid Builder, Proposal Center).
+ * (Overview, Drawings, Project Breakdown, Takeoff, Pricing, Bid Builder,
+ * Proposal Center).
  *
  * Row 1 — back to Projects, project name, project code, status chip, optional
  *         primary action, overflow menu.
@@ -14,6 +15,8 @@ import { ChevronLeft, MoreHorizontal } from "lucide-react";
 export const PROJECT_TABS = [
   "Overview",
   "Drawings",
+  // Classifications are defined before or during takeoff, so it sits before it.
+  "Project Breakdown",
   "Takeoff",
   "Pricing",
   "Bid Builder",
@@ -26,6 +29,7 @@ export type ProjectTab = (typeof PROJECT_TABS)[number];
 export const TAB_PAGE_MAP: Record<ProjectTab, string> = {
   Overview: "project-detail",
   Drawings: "drawings",
+  "Project Breakdown": "project-breakdown",
   Takeoff: "takeoff-workspace",
   Pricing: "pricing",
   "Bid Builder": "bid-builder",

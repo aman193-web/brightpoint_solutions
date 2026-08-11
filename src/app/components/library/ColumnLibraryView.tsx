@@ -3,17 +3,25 @@ import { toast } from 'sonner';
 import {
   Search, X, Star, ChevronRight, Plus, RefreshCw, Play, Save, Download,
   Package, AlertTriangle, ChevronDown, ChevronUp, List, Columns3,
-  GripHorizontal, Layers, Trash2, ClipboardList,
+  GripHorizontal, Layers, Trash2, ClipboardList, Palette, MoreHorizontal, Clock, Copy, ArrowUpDown,
 } from 'lucide-react';
 import {
   CategoryCode, Assembly, Part, Library,
   CATEGORIES, ASSEMBLY_SUBCATS, typesFor, ALL_ASSEMBLIES, categoryOf,
   PART_CATEGORIES, MASTER_PARTS, PART_DRAG_TYPE, dragState,
-  STATUS_CFG, BOMItem, AssemblyStatus, contextsForCategory,
+  STATUS_CFG, BOMItem, contextsForCategory,
 } from './libraryData';
 import {
   useTakeoffQueue, enqueue, updateEntry, removeEntry, clearQueue, queueTotals,
 } from '../../lib/takeoffQueue';
+import {
+  TakeoffSymbol, symbolFor, setSymbolFor, onSymbolChange,
+} from './libraryBuild';
+import { SymbolMark, SymbolPicker } from './SymbolControl';
+import { SaveAssemblyModal } from './SaveAssemblyModal';
+import { ContextId, PROJECT_CONTEXTS, partAllowed } from './libraryFilters';
+import { FilterBar } from './FilterBar';
+import { useRecentAssemblies, recordSaved, createdAgo } from '../../lib/recentAssemblies';
 
 /**
  * Column browser — the McCormick drill-down (category → subcategory → type →
@@ -163,9 +171,51 @@ function ResizeHandle({ onStart }: { onStart: (e: React.MouseEvent) => void }) {
   );
 }
 
+/**
+ * How the assembly list is ordered.
+ *
+ * "Recently created" is the default because the estimator's last save is what
+ * they most often want next; the rest are there for when the library is being
+ * read rather than worked.
+ */
+type SortMode = 'recent' | 'az' | 'za' | 'code' | 'category';
+
+const SORT_OPTIONS: { id: SortMode; label: string }[] = [
+  { id: 'recent',   label: 'Recently created' },
+  { id: 'az',       label: 'Name A–Z' },
+  { id: 'za',       label: 'Name Z–A' },
+  { id: 'code',     label: 'Assembly code' },
+  { id: 'category', label: 'Category path' },
+];
+
+/**
+ * Marks an assembly created in this session, on the row it already occupies.
+ *
+ * The alternative — a separate Recently Created list above the library — meant
+ * the same assembly appeared twice and the estimator had to work out whether
+ * they were looking at one thing or two. Recency is a property of the row.
+ */
+function RecentBadge({ savedAt, compact }: { savedAt: number; compact?: boolean }) {
+  const ago = createdAgo(savedAt).replace(/^Created /, '');
+  return (
+    <span
+      title={createdAgo(savedAt)}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
+        fontSize: 9, fontWeight: 600, color: '#15803D',
+        background: '#F0FDF4', border: '1px solid #BBF7D0',
+        padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap',
+      }}
+    >
+      <Clock size={8} />
+      {compact ? ago : `Recently created · ${ago}`}
+    </span>
+  );
+}
+
 /** Flat, searchable list of every row in a library — no category drilling. */
 function FlatList({ rows, emptyText }: {
-  rows: { id: string; primary: string; secondary: string; path?: string; active?: boolean; right?: React.ReactNode; onClick?: () => void; draggable?: boolean; onDragStart?: (e: React.DragEvent) => void; onDragEnd?: () => void }[];
+  rows: { id: string; primary: string; secondary: string; path?: string; badge?: React.ReactNode; active?: boolean; right?: React.ReactNode; lead?: React.ReactNode; onClick?: () => void; draggable?: boolean; onDragStart?: (e: React.DragEvent) => void; onDragEnd?: () => void }[];
   emptyText: string;
 }) {
   if (rows.length === 0) return <EmptyColumn text={emptyText} />;
@@ -187,10 +237,12 @@ function FlatList({ rows, emptyText }: {
           onMouseEnter={(e) => { if (!r.active) e.currentTarget.style.background = '#F9FAFB'; }}
           onMouseLeave={(e) => { if (!r.active) e.currentTarget.style.background = 'transparent'; }}
         >
+          {r.lead && <span style={{ display: 'flex', flexShrink: 0 }}>{r.lead}</span>}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: r.active ? 600 : 400, color: r.active ? '#1D4ED8' : '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.primary}</div>
             <div style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'IBM Plex Mono, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.secondary}</div>
           </div>
+          {r.badge}
           {r.path && (
             <span style={{ fontSize: 10, color: '#9CA3AF', background: '#F9FAFB', border: '1px solid #F3F4F6', padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap', flexShrink: 0, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {r.path}
@@ -213,172 +265,14 @@ function FlatList({ rows, emptyText }: {
  * is already built by the time this opens, so this is where the naming and
  * filing happens — not a gate in front of the work.
  */
-function SaveAssemblyModal({ seedCat, seedSubcat, seedType, seedName, seedBom, libraries, onClose, onSave }: {
-  seedCat: CategoryCode;
-  seedSubcat: string | null;
-  seedType: string | null;
-  seedName: string;
-  seedBom: BOMItem[];
-  libraries: Library[];
-  onClose: () => void;
-  onSave: (a: Assembly, cat: CategoryCode) => void;
-}) {
-  const [name, setName] = useState(seedName);
-  const [code, setCode] = useState('');
-  const [desc, setDesc] = useState('');
-  const [cat, setCat] = useState<CategoryCode>(seedCat);
-  const [subcat, setSubcat] = useState(seedSubcat ?? (ASSEMBLY_SUBCATS[seedCat]?.[0] ?? ''));
-  const [type, setType] = useState(seedType ?? '');
-  const [status, setStatus] = useState<AssemblyStatus>('custom');
-  const [dest, setDest] = useState(libraries.filter((l) => !l.readonly)[0]?.id ?? '');
-  const [error, setError] = useState('');
+/**
+ * The mark this assembly leaves on the plan.
+ *
+ * Rendered at the size it appears in a list, and again on the takeoff screen —
+ * the estimator has to be able to tell at a glance which assembly they are
+ * counting, because finding out forty clicks later means recounting.
+ */
 
-  const subcats = ASSEMBLY_SUBCATS[cat] ?? [];
-  const types = subcat ? typesFor(cat, subcat) : [];
-  const editable = libraries.filter((l) => !l.readonly);
-
-  // Suggest a code from the branch so estimators do not invent their own scheme.
-  const suggestedCode = `BPA-${cat.replace('BPC-', '')}-${String(100 + Math.min(99, subcats.indexOf(subcat) + 1))}`;
-
-  function save() {
-    if (!name.trim()) { setError('Give the assembly a name.'); return; }
-    if (!subcat) { setError('Choose a subcategory so it files correctly.'); return; }
-    if (!dest) { setError('Choose a destination library.'); return; }
-    const a: Assembly = {
-      id: `custom-${cat}-${name.trim().toLowerCase().replace(/\s+/g, '-')}`,
-      name: name.trim(),
-      code: (code.trim() || suggestedCode).toUpperCase(),
-      desc: desc.trim() || `${name.trim()} — ${subcat}${type ? ` · ${type}` : ''}`,
-      status,
-      subcat,
-      type: type || undefined,
-      context: contextsForCategory(cat).slice(0, 1),
-      wiringMethod: seedBom.find((i) => i.group === 'Wiring')?.name ?? '—',
-      source: 'company',
-      isFavorite: false,
-      bom: seedBom.map((i, idx) => ({ ...i, id: `nb${idx + 1}` })),
-    };
-    onSave(a, cat);
-  }
-
-  const field: React.CSSProperties = {
-    width: '100%', height: 34, padding: '0 10px', border: '1px solid #E5E7EB',
-    borderRadius: 7, fontSize: 13, background: 'white', outline: 'none', boxSizing: 'border-box',
-  };
-  const label: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 4 };
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(17,24,39,0.45)', padding: 16 }}>
-      <div style={{ width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto', background: 'white', borderRadius: 12, boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Layers size={15} color="#2563EB" />
-          <span style={{ fontSize: 14, fontWeight: 600, color: '#111827', flex: 1 }}>Save assembly</span>
-          <button onClick={onClose} aria-label="Close" style={{ width: 28, height: 28, border: '1px solid #E5E7EB', borderRadius: 6, background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <X size={13} color="#6B7280" />
-          </button>
-        </div>
-
-        <div style={{ padding: 18 }}>
-          <div style={{ marginBottom: 12 }}>
-            <label style={label}>Assembly name *</label>
-            <input value={name} onChange={(e) => { setName(e.target.value); setError(''); }} placeholder="e.g. LED Troffer 2×4 — Wood Framing" style={field} />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-            <div>
-              <label style={label}>Category *</label>
-              <select
-                value={cat}
-                onChange={(e) => {
-                  const next = e.target.value as CategoryCode;
-                  setCat(next);
-                  setSubcat(ASSEMBLY_SUBCATS[next]?.[0] ?? '');
-                  setType('');
-                }}
-                style={field}
-              >
-                {CATEGORIES.map((c) => <option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={label}>Subcategory *</label>
-              <select value={subcat} onChange={(e) => { setSubcat(e.target.value); setType(''); setError(''); }} style={field}>
-                {subcats.length === 0 && <option value="">No subcategories</option>}
-                {subcats.map((sc) => <option key={sc} value={sc}>{sc}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-            <div>
-              <label style={label}>Type</label>
-              <select value={type} onChange={(e) => setType(e.target.value)} disabled={types.length === 0} style={{ ...field, opacity: types.length === 0 ? 0.55 : 1 }}>
-                <option value="">— none —</option>
-                {types.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={label}>Assembly code</label>
-              <input value={code} onChange={(e) => setCode(e.target.value)} placeholder={suggestedCode} style={{ ...field, fontFamily: 'IBM Plex Mono, monospace' }} />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <label style={label}>Description</label>
-            <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional — defaults to the branch it files under" style={field} />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-            <div>
-              <label style={label}>Save to library *</label>
-              <select value={dest} onChange={(e) => { setDest(e.target.value); setError(''); }} style={field}>
-                {editable.length === 0 && <option value="">No editable library</option>}
-                {editable.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={label}>Status</label>
-              <select value={status} onChange={(e) => setStatus(e.target.value as AssemblyStatus)} style={field}>
-                {(['custom', 'project-standard', 'recommended', 'compatible', 'needs-review'] as AssemblyStatus[]).map((st) => (
-                  <option key={st} value={st}>{STATUS_CFG[st].label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 11px', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, marginBottom: 12 }}>
-            <Layers size={13} color="#6B7280" style={{ flexShrink: 0, marginTop: 2 }} />
-            <span style={{ fontSize: 12, color: '#374151', lineHeight: '17px' }}>
-              {seedBom.length > 0
-                ? <>Saves the {seedBom.length} component{seedBom.length === 1 ? '' : 's'} on the bench.</>
-                : <>Saving with an empty BOM.</>}
-              <span style={{ display: 'block', fontSize: 11, color: '#9CA3AF' }}>
-                {seedBom.length > 0
-                  ? 'Close this and keep editing if the BOM is not finished.'
-                  : 'You can add components now and save again — nothing is locked.'}
-              </span>
-            </span>
-          </div>
-
-          <div style={{ fontSize: 11, color: '#6B7280', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 7, padding: '8px 10px', marginBottom: 14 }}>
-            Files under <strong>{CATEGORIES.find((c) => c.code === cat)?.name}</strong>
-            {subcat ? <> › <strong>{subcat}</strong></> : null}
-            {type ? <> › <strong>{type}</strong></> : null}
-          </div>
-
-          {error && <div style={{ fontSize: 12, color: '#DC2626', marginBottom: 10 }}>{error}</div>}
-
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={onClose} style={{ height: 34, padding: '0 16px', border: '1px solid #E5E7EB', borderRadius: 7, background: 'white', fontSize: 13, color: '#374151', cursor: 'pointer' }}>Cancel</button>
-            <button onClick={save} style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 7, background: '#2563EB', fontSize: 13, fontWeight: 600, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Save size={13} /> Save assembly
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Takeoff queue modal ──────────────────────────────────────────────────────
 
@@ -482,8 +376,10 @@ function TakeoffQueueModal({ onClose }: { onClose: () => void }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
+export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryPicker }: {
   activeLib: Library;
+  libraries?: Library[];
+  /** Browse | Build. Last in the toolbar, right-aligned. */
   viewSwitcher: React.ReactNode;
   libraryPicker?: React.ReactNode;
 }) {
@@ -509,9 +405,37 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
   /** The unsaved assembly on the bench, if any. Lives in the cascade like any other. */
   const [draftId, setDraftId] = useState<string | null>(null);
   const draftSeq = useRef(0);
+  /**
+   * Building conditions, inherited from Project Setup and overridable here.
+   * They narrow the parts on offer; the cascade itself is untouched.
+   */
+  const [ctxFilters, setCtxFilters] = useState<ContextId[]>(PROJECT_CONTEXTS);
+
+  /**
+   * Assemblies saved this session. They live in the shared store because Build
+   * Mode is unmounted by the time Browse needs to show what it saved.
+   */
+  const recent = useRecentAssemblies();
+
+  /**
+   * Recency, as a property of the assembly rather than a place to look.
+   * Marked inline on the row it already occupies — no second list to scan.
+   */
+  const recentOf = useMemo(
+    () => new Map(recent.map((r) => [r.assembly.id, r.savedAt])),
+    [recent],
+  );
+
+  const [rowMenuId, setRowMenuId] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>('recent');
+  /** True while the Save dialog is filing a copy rather than the draft itself. */
+  const [duplicating, setDuplicating] = useState(false);
   const [showSaveAssembly, setShowSaveAssembly] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const takeoffQueue = useTakeoffQueue();
+
+  /** Takeoff symbol per assembly. Defaults are derived, then overridden here. */
+  const [symbolOpen, setSymbolOpen] = useState(false);
 
   // Parts cascade
   const [partCat, setPartCat]       = useState<string | null>('Hangers & Supports');
@@ -523,7 +447,8 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
   const [bom, setBom]                   = useState<BOMItem[]>(ALL_ASSEMBLIES.find((a) => a.id === 'fx-201')?.bom ?? []);
   const [selectedBomId, setSelectedBomId] = useState<string | null>(null);
   const [dropActive, setDropActive]     = useState(false);
-  const [count, setCount]               = useState('1');
+  /** Starts at zero: opening an assembly must not put work in the job. */
+  const [count, setCount]               = useState('0');
 
   // Drag the divider between the two cascades.
   useEffect(() => {
@@ -543,19 +468,43 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
     };
   }, [dragging]);
 
-  /** Shipped assemblies plus anything created in this session. */
-  const assemblies = useMemo(
-    () => [...ALL_ASSEMBLIES, ...customAssemblies.map((c) => c.a)],
-    [customAssemblies],
-  );
+  /**
+   * Shipped assemblies, this view's drafts, and anything Build Mode saved.
+   *
+   * Saved assemblies are filed here like any other — Recently Created is only a
+   * shortcut to them, never a separate store.
+   */
+  const assemblies = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Assembly[] = [];
+    for (const a of [...ALL_ASSEMBLIES, ...customAssemblies.map((c) => c.a), ...recent.map((r) => r.assembly)]) {
+      if (seen.has(a.id)) continue;
+      seen.add(a.id);
+      out.push(a);
+    }
+    return out;
+  }, [customAssemblies, recent]);
 
-  /** Custom assemblies carry their category explicitly; the rest derive it. */
+  /** Custom and saved assemblies carry their category explicitly. */
   const catOf = useMemo(() => {
-    const overrides = new Map(customAssemblies.map((c) => [c.a.id, c.cat]));
+    const overrides = new Map<string, CategoryCode>([
+      ...customAssemblies.map((c) => [c.a.id, c.cat] as [string, CategoryCode]),
+      ...recent.map((r) => [r.assembly.id, r.cat] as [string, CategoryCode]),
+    ]);
     return (a: Assembly) => overrides.get(a.id) ?? categoryOf(a);
-  }, [customAssemblies]);
+  }, [customAssemblies, recent]);
 
   const selectedAsm = asmId ? assemblies.find((a) => a.id === asmId) ?? null : null;
+
+  /** An assembly's mark: whatever was chosen, else a stable derived default. */
+  /*
+   * Read from the shared store, not local state: a symbol set in Build Mode has
+   * to already be on the assembly when Browse first renders it.
+   */
+  const [, symbolRev] = useState(0);
+  useEffect(() => onSymbolChange(() => symbolRev((n) => n + 1)), []);
+  const symbolOf = (a: Assembly): TakeoffSymbol => symbolFor(a.id, a.name);
+  const setSymbol = (id: string, sym: TakeoffSymbol) => setSymbolFor(id, sym);
   const isDraft = !!draftId && asmId === draftId;
   const savedCustomCount = customAssemblies.filter((c) => c.a.id !== draftId).length;
 
@@ -600,15 +549,22 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
   // ── Parts cascade data ──────────────────────────────────────────────────────
   const partSubcats = partCat ? (PART_CATEGORIES.find((c) => c.name === partCat)?.subcats ?? []) : [];
 
+  /** Parts the active building conditions permit. Empty filters = everything. */
+  const allowedParts = useMemo(
+    () => MASTER_PARTS.filter((pt) => partAllowed(pt, ctxFilters)),
+    [ctxFilters],
+  );
+  const partsHidden = MASTER_PARTS.length - allowedParts.length;
+
   const partList = useMemo(() => {
     const q = partSearch.trim().toLowerCase();
     if (q) {
-      return MASTER_PARTS.filter((pt) =>
+      return allowedParts.filter((pt) =>
         pt.name.toLowerCase().includes(q) || pt.code.toLowerCase().includes(q) || pt.mfr.toLowerCase().includes(q));
     }
-    return MASTER_PARTS.filter((pt) =>
+    return allowedParts.filter((pt) =>
       (!partCat || pt.cat === partCat) && (!partSubcat || pt.subcat === partSubcat));
-  }, [partCat, partSubcat, partSearch]);
+  }, [allowedParts, partCat, partSubcat, partSearch]);
 
   /**
    * Complete-list mode deliberately ignores the cascade selection — the point of
@@ -618,15 +574,40 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
    */
   const partFlatList = useMemo(() => {
     const q = partSearch.trim().toLowerCase();
-    if (!q) return MASTER_PARTS;
-    return MASTER_PARTS.filter((pt) =>
+    if (!q) return allowedParts;
+    return allowedParts.filter((pt) =>
       pt.name.toLowerCase().includes(q) || pt.code.toLowerCase().includes(q) || pt.mfr.toLowerCase().includes(q));
-  }, [partSearch]);
+  }, [allowedParts, partSearch]);
+
+  /**
+   * Applies the chosen order.
+   *
+   * Under "Recently created", saves float to the top and everything else keeps
+   * the library's own order — a badge alone is not enough on a long list, since
+   * an assembly saved a minute ago sitting at row 25 is still a hunt.
+   */
+  const sortRows = useMemo(() => (rows: Assembly[]) => {
+    const path = (a: Assembly) =>
+      `${CATEGORIES.find((c) => c.code === catOf(a))?.name ?? ''} ${a.subcat ?? ''} ${a.type ?? ''}`;
+    switch (sortMode) {
+      case 'az':
+        return [...rows].sort((x, y) => x.name.localeCompare(y.name));
+      case 'za':
+        return [...rows].sort((x, y) => y.name.localeCompare(x.name));
+      case 'code':
+        return [...rows].sort((x, y) => x.code.localeCompare(y.code));
+      case 'category':
+        return [...rows].sort((x, y) => path(x).localeCompare(path(y)) || x.name.localeCompare(y.name));
+      default:
+        if (recentOf.size === 0) return rows;
+        return [...rows].sort((x, y) => (recentOf.get(y.id) ?? 0) - (recentOf.get(x.id) ?? 0));
+    }
+  }, [recentOf, sortMode, catOf]);
 
   /** Same rule for assemblies: the whole library, filtered only by the search. */
   const asmFlatList = useMemo(
-    () => (search ? assemblyList : assemblies),
-    [search, assemblyList, assemblies],
+    () => sortRows(search ? assemblyList : assemblies),
+    [search, assemblyList, assemblies, sortRows],
   );
 
   // ── BOM actions ─────────────────────────────────────────────────────────────
@@ -649,14 +630,30 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
     toast.success('Component replaced', { description: `${target?.name ?? 'Component'} → ${part.name}` });
   }
 
+  /** Editable component quantity — a bracket goes 1 → 10, wire 20 ft → 10 ft. */
+  function setBomQty(id: string, qty: number) {
+    setBom((prev) => prev.map((i) => (i.id === id
+      // A hand-typed quantity overrides any parametric calculation behind it,
+      // and says so, so nobody wonders why the formula stopped applying.
+      ? { ...i, qty, manualOverride: true, calc: i.baseQty !== undefined ? `overridden — was ${i.baseQty}` : i.calc }
+      : i)));
+  }
+
   function removeBomItem(id: string) {
     setBom((prev) => prev.filter((i) => i.id !== id));
     if (selectedBomId === id) setSelectedBomId(null);
   }
 
+  /**
+   * Send the assembly to the takeoff screen ready to count.
+   *
+   * It arrives at zero on purpose. Pre-adding a count of one means every
+   * assembly the estimator opens and abandons leaves a phantom fixture in the
+   * job — the count comes from clicking the plan, not from opening a panel.
+   */
   function addToTakeoff() {
     if (!selectedAsm) { toast.error('Select an assembly first'); return; }
-    const qty = Math.max(1, parseInt(count, 10) || 1);
+    const qty = Math.max(0, parseInt(count, 10) || 0);
     enqueue({
       assemblyId: selectedAsm.id,
       name: selectedAsm.name,
@@ -670,16 +667,22 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
       labourHours: labourHrs,
       sheet: 'E-101',
     });
-    toast.success('Sent to takeoff', {
-      description: `${qty} × ${selectedAsm.name} — open the takeoff queue to place it.`,
+    toast.success('Ready to count on the plan', {
+      description: qty > 0
+        ? `${selectedAsm.name} — starting at ${qty}.`
+        : `${selectedAsm.name} — click the plan to count. Nothing is added until you do.`,
     });
   }
 
   /**
-   * New assembly drops a draft tile straight into the selected branch with an
-   * empty BOM. Naming and filing are deferred to Save, so the estimator starts
-   * building immediately instead of answering a form first.
+   * Drops a draft tile into the selected branch with an empty BOM.
+   *
+   * Unreachable from Browse since the New assembly button was removed on the
+   * client's instruction — creating an assembly is Build Mode's job. Kept
+   * because the draft *rendering* is still live: an in-progress draft shows here
+   * with its DRAFT chip, and nothing else knows how to construct one.
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function startDraft() {
     draftSeq.current += 1;
     const id = `draft-${draftSeq.current}`;
@@ -725,14 +728,30 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
   }
 
   /** Save turns the draft into a filed assembly, in place. */
-  function saveAssembly(a: Assembly, catCode: CategoryCode) {
+  function saveAssembly(a: Assembly, catCode: CategoryCode, libraryId?: string) {
+    const isCopy = duplicating;
     setCustomAssemblies((prev) => (
-      draftId
+      /*
+       * A copy is always a new row. Only a draft being filed replaces itself —
+       * duplicating while a draft is open must not consume the draft.
+       */
+      draftId && !isCopy
         ? prev.map((c) => (c.a.id === draftId ? { a, cat: catCode } : c))
         : [...prev, { a, cat: catCode }]
     ));
-    setDraftId(null);
+    if (!isCopy) setDraftId(null);
+
+    // Mark it recent, which is what puts the badge on its row in both views.
+    const lib = (libraries ?? [activeLib]).find((l) => l.id === libraryId);
+    recordSaved({
+      assembly: a,
+      cat: catCode,
+      libraryId: libraryId ?? activeLib.id,
+      libraryName: lib?.name ?? activeLib.name,
+    });
+
     setShowSaveAssembly(false);
+    setDuplicating(false);
     // Reveal it where it filed, so the estimator sees it land.
     setCat(catCode);
     if (a.subcat) setSubcat(a.subcat);
@@ -741,7 +760,7 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
     setAsmId(a.id);
     setBom(a.bom);
     setSelectedBomId(null);
-    toast.success('Assembly saved', {
+    toast.success(isCopy ? 'Duplicate created' : 'Assembly saved', {
       description: `${a.name} filed under ${CATEGORIES.find((c) => c.code === catCode)?.name}${a.subcat ? ` › ${a.subcat}` : ''}.`,
     });
   }
@@ -768,6 +787,8 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
             </button>
           )}
         </div>
+
+        <FilterBar active={ctxFilters} onChange={setCtxFilters} inherited={PROJECT_CONTEXTS} compact />
 
         {/* Pushes the library picker, takeoff queue and view switcher flush
             right, matching the Workbench toolbar. */}
@@ -835,12 +856,21 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
             mode={asmMode}
             onModeChange={setAsmMode}
           >
-            <button
-              onClick={startDraft}
-              style={{ height: 24, padding: '0 8px', border: '1px solid #BFDBFE', borderRadius: 5, background: 'white', fontSize: 11, fontWeight: 600, color: '#1D4ED8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
-            >
-              <Plus size={11} /> New assembly
-            </button>
+            {/* Ordering sits with the list it orders, next to the action that adds to it. */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+              <ArrowUpDown size={11} color="#9CA3AF" />
+              <span className="bp-hide-sm" style={{ fontSize: 10, color: '#9CA3AF' }}>Sort</span>
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as SortMode)}
+                aria-label="Sort assemblies"
+                style={{ height: 24, padding: '0 4px', border: '1px solid #E5E7EB', borderRadius: 5, fontSize: 11, background: 'white', outline: 'none', color: '#374151', minWidth: 0 }}
+              >
+                {SORT_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+            </label>
+
+            
           </SectionBar>
 
           {!asmCollapsed && (asmMode === 'list' ? (
@@ -849,11 +879,15 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
                 emptyText="No assemblies match."
                 rows={asmFlatList.map((a) => ({
                   id: a.id,
+                  // The same mark the cascade shows — the list was the only
+                  // assembly view that did not say which symbol it carries.
+                  lead: <SymbolMark symbol={symbolOf(a)} size={13} />,
                   primary: a.name,
                   secondary: `${a.code} · ${a.wiringMethod}`,
                   path: `${CATEGORIES.find((c) => c.code === catOf(a))?.name ?? ''}${a.subcat ? ` › ${a.subcat}` : ''}${a.type ? ` › ${a.type}` : ''}`,
                   active: a.id === asmId,
                   onClick: () => selectAssembly(a),
+                  badge: recentOf.has(a.id) ? <RecentBadge savedAt={recentOf.get(a.id)!} /> : undefined,
                   right: a.id === draftId ? (
                     <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, color: '#B45309', background: '#FFFBEB', letterSpacing: '0.04em', flexShrink: 0 }}>
                       DRAFT
@@ -917,19 +951,22 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
             <Column title={search ? 'Matching assemblies' : 'Assembly'} count={assemblyList.length} flex>
               {assemblyList.length === 0
                 ? <EmptyColumn text="No assemblies in this branch yet. The catalogue import will populate it." />
-                : assemblyList.map((a) => {
+                : sortRows(assemblyList).map((a) => {
                   const st = STATUS_CFG[a.status];
                   const fav = asmFavs.has(a.id);
                   const draft = a.id === draftId;
                   return (
+                    <div key={a.id}>
                     <ColumnRow
-                      key={a.id}
                       label={a.name}
                       sub={search ? `${a.code} · ${a.subcat ?? ''}${a.type ? ' · ' + a.type : ''}` : a.code}
                       active={a.id === asmId}
                       onClick={() => selectAssembly(a)}
                       right={
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                          {recentOf.has(a.id) && <RecentBadge savedAt={recentOf.get(a.id)!} compact />}
+                          {/* The mark it leaves on the plan, visible before it is picked. */}
+                          <SymbolMark symbol={symbolOf(a)} size={13} />
                           {draft
                             ? <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, color: '#B45309', background: '#FFFBEB', letterSpacing: '0.04em' }}>DRAFT</span>
                             : <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 4, color: st.color, background: st.bg }}>{st.symbol}</span>}
@@ -940,9 +977,42 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
                           >
                             <Star size={11} fill={fav ? '#F59E0B' : 'none'} color={fav ? '#F59E0B' : '#D1D5DB'} />
                           </button>
+                          {/* Row actions. Duplicate opens a copy in Build Mode. */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setRowMenuId(rowMenuId === a.id ? null : a.id); }}
+                            aria-label={`Actions for ${a.name}`}
+                            style={{ width: 20, height: 20, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          >
+                            <MoreHorizontal size={12} color="#9CA3AF" />
+                          </button>
                         </div>
                       }
                     />
+                    {rowMenuId === a.id && (
+                      <>
+                        <div onClick={() => setRowMenuId(null)} style={{ position: 'fixed', inset: 0, zIndex: 44 }} />
+                        <div style={{ position: 'relative' }}>
+                          <div style={{ position: 'absolute', right: 8, top: -4, zIndex: 45, minWidth: 172, background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, boxShadow: '0 6px 20px rgba(17,24,39,0.14)', overflow: 'hidden' }}>
+                            {([
+                              ['Open', () => selectAssembly(a)],
+                              ['Duplicate Assembly', () => { selectAssembly(a); setDuplicating(true); setShowSaveAssembly(true); }],
+                              [fav ? 'Unfavorite' : 'Favorite', () => setAsmFavs((prev) => { const n = new Set(prev); if (n.has(a.id)) n.delete(a.id); else n.add(a.id); return n; })],
+                            ] as [string, () => void][]).map(([label, act]) => (
+                              <button
+                                key={label}
+                                onClick={() => { setRowMenuId(null); act(); }}
+                                style={{ width: '100%', padding: '7px 11px', border: 'none', background: 'white', cursor: 'pointer', textAlign: 'left', fontSize: 12, color: '#374151', borderBottom: '1px solid #F9FAFB' }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = '#F9FAFB'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; }}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    </div>
                   );
                 })}
             </Column>
@@ -972,6 +1042,11 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
                 style={{ width: '100%', height: 24, paddingLeft: 24, paddingRight: 8, border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 11, outline: 'none', boxSizing: 'border-box', background: 'white' }}
               />
             </div>
+            {partsHidden > 0 && (
+              <span title="Hidden by the active building conditions" style={{ fontSize: 10, color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', padding: '2px 7px', borderRadius: 999, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                {partsHidden} filtered out
+              </span>
+            )}
             <span className="bp-hide-sm" style={{ fontSize: 10, color: '#9CA3AF', flexShrink: 0 }}>drag onto the BOM</span>
           </SectionBar>
 
@@ -1020,7 +1095,7 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
                     <ColumnRow
                       key={c.name}
                       label={c.name}
-                      sub={`${MASTER_PARTS.filter((pt) => pt.cat === c.name).length} parts`}
+                      sub={`${allowedParts.filter((pt) => pt.cat === c.name).length} parts`}
                       active={c.name === partCat && !partSearch}
                       chevron
                       onClick={() => { setPartCat(c.name); setPartSubcat(null); setPartSearch(''); }}
@@ -1035,7 +1110,7 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
                       <ColumnRow
                         key={sc}
                         label={sc}
-                        sub={`${MASTER_PARTS.filter((pt) => pt.cat === partCat && pt.subcat === sc).length} parts`}
+                        sub={`${allowedParts.filter((pt) => pt.cat === partCat && pt.subcat === sc).length} parts`}
                         active={sc === partSubcat && !partSearch}
                         chevron
                         onClick={() => { setPartSubcat(sc); setPartSearch(''); }}
@@ -1121,14 +1196,20 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
                 <Download size={11} color="#6B7280" />
               </button>
             )}
-            {/* A draft has never been filed, so Save has to collect a name and a
-                branch first. A filed assembly just saves. */}
+            {/*
+              A draft has never been filed, so it needs Save to collect a name
+              and a branch. A filed assembly does not — saving it again was a
+              no-op — so the same slot offers Duplicate, which is the action an
+              estimator actually wants on an assembly that already exists.
+            */}
             <button
               onClick={() => {
                 if (!selectedAsm) { toast.error('Select an assembly first'); return; }
-                if (isDraft) setShowSaveAssembly(true);
-                else toast.success('Assembly saved', { description: selectedAsm.name });
+                if (isDraft) { setDuplicating(false); setShowSaveAssembly(true); return; }
+                setDuplicating(true);
+                setShowSaveAssembly(true);
               }}
+              title={isDraft ? 'File this draft' : `Create a copy of ${selectedAsm?.name ?? 'this assembly'}`}
               style={{
                 height: 26, padding: '0 8px', borderRadius: 5, cursor: 'pointer', fontSize: 11,
                 display: 'flex', alignItems: 'center', gap: 3,
@@ -1138,15 +1219,41 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
                 fontWeight: isDraft ? 600 : 400,
               }}
             >
-              <Save size={10} /> Save
+              {isDraft ? <><Save size={10} /> Save</> : <><Copy size={10} /> Duplicate</>}
             </button>
           </div>
 
           {selectedAsm ? (
             <>
-              <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{selectedAsm.name}</div>
-                <div style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'IBM Plex Mono, monospace', marginTop: 1 }}>{selectedAsm.code}</div>
+              <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #E5E7EB', flexShrink: 0, position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{selectedAsm.name}</div>
+                    <div style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'IBM Plex Mono, monospace', marginTop: 1 }}>{selectedAsm.code}</div>
+                  </div>
+                  {/*
+                    Shape and colour live with the assembly and are changeable
+                    here and on the takeoff screen, so the estimator always knows
+                    which assembly the marks on the plan belong to.
+                  */}
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <button
+                      onClick={() => setSymbolOpen((v) => !v)}
+                      title="Takeoff symbol — the mark this assembly leaves on the plan"
+                      style={{ height: 30, padding: '0 7px', border: '1px solid #E5E7EB', borderRadius: 7, background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                    >
+                      <SymbolMark symbol={symbolOf(selectedAsm)} size={16} />
+                      <Palette size={10} color="#9CA3AF" />
+                    </button>
+                    {symbolOpen && (
+                      <SymbolPicker
+                        symbol={symbolOf(selectedAsm)}
+                        onChange={(sym) => setSymbol(selectedAsm.id, sym)}
+                        onClose={() => setSymbolOpen(false)}
+                      />
+                    )}
+                  </div>
+                </div>
                 <div style={{ fontSize: 11, color: '#6B7280', marginTop: 5, lineHeight: '16px' }}>{selectedAsm.desc}</div>
                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 7 }}>
                   {selectedAsm.context.map((c) => (
@@ -1179,7 +1286,26 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
                           {item.code} · {item.group}{item.calc ? ` · ${item.calc}` : ''}
                         </div>
                       </div>
-                      <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#374151', flexShrink: 0 }}>{item.qty} {item.unit}</span>
+                      {/*
+                        Quantities are editable in place, on new and existing
+                        assemblies alike — a bracket goes 1 → 10, a wire run
+                        20 ft → 10 ft. It is also the hook the AI will use later
+                        to set wire lengths from fixture spacing.
+                      */}
+                      <input
+                        type="number" min={0} step={item.unit === 'LF' ? 5 : 1} value={item.qty}
+                        aria-label={`${item.name} quantity`}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => setBomQty(item.id, parseFloat(e.target.value) || 0)}
+                        style={{
+                          width: 54, height: 26, padding: '0 5px', borderRadius: 5, fontSize: 11,
+                          fontFamily: 'IBM Plex Mono, monospace', textAlign: 'right', outline: 'none',
+                          flexShrink: 0, boxSizing: 'border-box',
+                          border: `1px solid ${item.manualOverride ? '#FDE68A' : '#E5E7EB'}`,
+                          background: item.manualOverride ? '#FFFBEB' : 'white',
+                        }}
+                      />
+                      <span style={{ fontSize: 10, color: '#9CA3AF', width: 20, flexShrink: 0 }}>{item.unit}</span>
                       <button onClick={(e) => { e.stopPropagation(); removeBomItem(item.id); }} aria-label={`Remove ${item.name}`}
                         style={{ width: 20, height: 20, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: 0.5 }}>
                         <X size={11} color="#DC2626" />
@@ -1204,10 +1330,10 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
                 ))}
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                  <label style={{ fontSize: 11, color: '#6B7280', flexShrink: 0 }}>Count</label>
+                  <label style={{ fontSize: 11, color: '#6B7280', flexShrink: 0 }} title="Leave at 0 and count on the plan — a starting count is optional">Count</label>
                   <input
                     type="number"
-                    min={1}
+                    min={0}
                     value={count}
                     onChange={(e) => setCount(e.target.value)}
                     style={{ width: 56, height: 32, padding: '0 8px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', textAlign: 'right', outline: 'none' }}
@@ -1233,14 +1359,20 @@ export function ColumnLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
 
       {showSaveAssembly && (
         <SaveAssemblyModal
-          seedCat={cat}
-          seedSubcat={subcat}
-          seedType={type}
-          seedName={isDraft ? '' : selectedAsm?.name ?? ''}
+          seedCat={duplicating ? catOf(selectedAsm!) : cat}
+          seedSubcat={duplicating ? selectedAsm?.subcat ?? subcat : subcat}
+          seedType={duplicating ? selectedAsm?.type ?? type : type}
+          /*
+           * A copy opens pre-named so the estimator renames rather than types
+           * from nothing; a draft has no name to offer yet.
+           */
+          seedName={duplicating ? `Copy of ${selectedAsm?.name ?? ''}` : isDraft ? '' : selectedAsm?.name ?? ''}
           seedBom={bom}
-          libraries={[activeLib]}
-          onClose={() => setShowSaveAssembly(false)}
-          onSave={saveAssembly}
+          libraries={libraries ?? [activeLib]}
+          existing={assemblies.map((x) => ({ name: x.name, cat: catOf(x) }))}
+          duplicateOf={duplicating ? selectedAsm?.name ?? null : null}
+          onClose={() => { setShowSaveAssembly(false); setDuplicating(false); }}
+          onSave={(a, catCode, libraryId) => saveAssembly(a, catCode, libraryId)}
         />
       )}
       {showQueue && <TakeoffQueueModal onClose={() => setShowQueue(false)} />}

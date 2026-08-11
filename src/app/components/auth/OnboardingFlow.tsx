@@ -415,7 +415,7 @@ export function OnboardingFlow({ onComplete, onExit }: OnboardingFlowProps) {
                   <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: "#6B7280" }}>%</span>
                 </div>
               </Field>
-              <Field label="GST / VAT rate (%)">
+              <Field label="Sales tax rate (%)">
                 <div style={{ position: "relative" }}>
                   <input defaultValue="10" style={{ ...inputStyle, paddingRight: 28 }} className="font-mono" />
                   <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: "#6B7280" }}>%</span>

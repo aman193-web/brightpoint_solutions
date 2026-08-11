@@ -166,6 +166,21 @@ export function validate(ctx: ValidationContext): ValidationIssue[] {
         target: 'taxRate',
       },
     });
+  } else if (ctx.taxRate === 0) {
+    issues.push({
+      id: 'tax-zero',
+      severity: 'blocking',
+      category: 'Tax',
+      message: 'Sales tax is on but the rate is 0% — either set the rate or switch tax off deliberately.',
+      fixLabel: 'Set tax',
+      fixPage: 'bid-builder',
+      autoFix: {
+        kind: 'restore-tax-default',
+        label: 'Restore company default',
+        detail: 'Puts the sales tax rate back to the company baseline in Settings.',
+        target: 'taxRate',
+      },
+    });
   } else if (!ctx.taxRegion) {
     issues.push({
       id: 'tax-region',

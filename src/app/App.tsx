@@ -12,6 +12,7 @@ import { DrawingsWorkspace } from "./components/drawings/DrawingsWorkspace";
 import { TakeoffWorkspace } from "./components/workspace/TakeoffWorkspace";
 import { LibraryView } from "./components/library/LibraryView";
 import { PricingWorkspace } from "./components/pricing/PricingWorkspace";
+import { ProjectBreakdownView } from "./components/projects/ProjectBreakdownView";
 import { BidBuilder } from "./components/bid/BidBuilder";
 import { ProposalCenter } from "./components/proposal/ProposalCenter";
 import { ReportsView } from "./components/reports/ReportsView";
@@ -26,6 +27,7 @@ type AppPage =
   | "project-detail"
   | "create-project"
   | "drawings"
+  | "project-breakdown"
   | "takeoff-workspace"
   | "libraries"
   | "pricing"
@@ -77,7 +79,7 @@ const PLACEHOLDER_ICONS: Record<string, string> = {
 const PROJECT_NAME = "Dollar Tree Retail Fit-Out — Store 1842";
 
 /** Project-scoped pages that render the shared ProjectHeader themselves. */
-const PROJECT_PAGES: AppPage[] = ["project-detail", "drawings", "pricing", "bid-builder", "proposal-center"];
+const PROJECT_PAGES: AppPage[] = ["project-detail", "drawings", "project-breakdown", "pricing", "bid-builder", "proposal-center"];
 
 // Pages that take full height with their own header — no shell TopBar
 const FULL_HEIGHT_PAGES: AppPage[] = ["create-project", "takeoff-workspace"];
@@ -282,6 +284,9 @@ export default function App() {
               projectStatus={projectStatus}
               onStatusChange={handleStatusChange}
             />
+          )}
+          {activePage === "project-breakdown" && (
+            <ProjectBreakdownView onNavigateTo={handleNavigateTo} />
           )}
           {activePage === "libraries" && <LibraryView />}
           {activePage === "pricing" && (

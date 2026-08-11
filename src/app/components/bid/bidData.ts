@@ -133,10 +133,9 @@ export interface SubRow {
   subcontractor: string;
   costCode: string;
   /**
-   * Optional and never derived. Subcontracted scope is priced whole, so the
-   * hours field stays empty unless the estimator is tracking site supervision.
+   * No labour hours. Subcontracted scope is quoted as a lump sum, so internal
+   * hours were a McCormick habit rather than a number anyone filled in.
    */
-  labourHours: number;
   taxable: boolean;
   quotedCost: number;
   multiplier: number;
@@ -151,21 +150,21 @@ export interface SubRow {
 export const SEED_SUB_ROWS: SubRow[] = [
   {
     id: 's1', included: true, scope: 'Fire Alarm', subcontractor: 'Southwest Fire Protection',
-    costCode: '28-30-00 Fire Detection', labourHours: 0, taxable: false,
+    costCode: '28-30-00 Fire Detection', taxable: false,
     quotedCost: 8400.00, multiplier: 1, attachment: 'southwest-quote.pdf',
     contact: 'Dale Whitmore', phone: '(02) 9556 4120', insuranceExpiry: '2027-01-31',
     notes: 'Devices, programming and verification. FACP by others.',
   },
   {
     id: 's2', included: false, scope: 'Core Drilling', subcontractor: 'Precision Core Services',
-    costCode: '26-05-00 Common Work', labourHours: 0, taxable: false,
+    costCode: '26-05-00 Common Work', taxable: false,
     quotedCost: 3200.00, multiplier: 1,
     contact: 'Marie Osei', phone: '(02) 9412 8890',
     notes: '18 penetrations, X-ray scanning included.',
   },
   {
     id: 's3', included: false, scope: 'Trenching', subcontractor: 'Groundline Civil',
-    costCode: '26-05-00 Common Work', labourHours: 0, taxable: false,
+    costCode: '26-05-00 Common Work', taxable: false,
     quotedCost: 5600.00, multiplier: 1,
     notes: 'Service trench to transformer pad — 42 m.',
   },
@@ -188,9 +187,9 @@ export interface ExpenseLine {
   expense: string;
   supplier: string;
   costCode: string;
-  labourHours: number;
   taxable: boolean;
   unitCost: number;
+  /** Quantity only — no multiplier or duration. Defaults to 1. */
   quantity: number;
   notes?: string;
   /** Checklist defaults can be excluded but not deleted. */
@@ -203,26 +202,26 @@ export interface ExpenseLine {
  */
 export const STANDARD_EXPENSE_LINES: Omit<ExpenseLine, 'id'>[] = [
   // Permits and Administration
-  { group: 'permits-admin', included: true,  expense: 'Permits and Fees', supplier: 'City of Wollongong', costCode: '01-50-00 Temp Facilities', labourHours: 0, taxable: false, unitCost: 350, quantity: 1, standard: true, notes: 'Electrical permit and inspection' },
-  { group: 'permits-admin', included: false, expense: 'Plan Charges',     supplier: '', costCode: '01-50-00 Temp Facilities', labourHours: 0, taxable: true,  unitCost: 0,   quantity: 1, standard: true },
-  { group: 'permits-admin', included: false, expense: 'Engineering',      supplier: '', costCode: '26-05-00 Common Work',     labourHours: 0, taxable: false, unitCost: 0,   quantity: 1, standard: true },
-  { group: 'permits-admin', included: false, expense: 'As-Builts',        supplier: '', costCode: '01-70-00 Closeout',        labourHours: 0, taxable: false, unitCost: 0,   quantity: 1, standard: true },
-  { group: 'permits-admin', included: false, expense: 'Bid Bond',         supplier: '', costCode: '01-50-00 Temp Facilities', labourHours: 0, taxable: false, unitCost: 0,   quantity: 1, standard: true, notes: 'Priced on the Bond tab when required' },
-  { group: 'permits-admin', included: false, expense: 'Insurance',        supplier: '', costCode: '01-50-00 Temp Facilities', labourHours: 0, taxable: false, unitCost: 0,   quantity: 1, standard: true },
+  { group: 'permits-admin', included: true,  expense: 'Permits and Fees', supplier: 'City of Wollongong', costCode: '01-50-00 Temp Facilities', taxable: false, unitCost: 350, quantity: 1, standard: true, notes: 'Electrical permit and inspection' },
+  { group: 'permits-admin', included: false, expense: 'Plan Charges',     supplier: '', costCode: '01-50-00 Temp Facilities', taxable: true,  unitCost: 0,   quantity: 1, standard: true },
+  { group: 'permits-admin', included: false, expense: 'Engineering',      supplier: '', costCode: '26-05-00 Common Work',     taxable: false, unitCost: 0,   quantity: 1, standard: true },
+  { group: 'permits-admin', included: false, expense: 'As-Builts',        supplier: '', costCode: '01-70-00 Closeout',        taxable: false, unitCost: 0,   quantity: 1, standard: true },
+  { group: 'permits-admin', included: false, expense: 'Bid Bond',         supplier: '', costCode: '01-50-00 Temp Facilities', taxable: false, unitCost: 0,   quantity: 1, standard: true, notes: 'Priced on the Bond tab when required' },
+  { group: 'permits-admin', included: false, expense: 'Insurance',        supplier: '', costCode: '01-50-00 Temp Facilities', taxable: false, unitCost: 0,   quantity: 1, standard: true },
 
   // Site and Field Operations
-  { group: 'site-field', included: false, expense: 'Telephone',          supplier: '', costCode: '01-50-00 Temp Facilities', labourHours: 0, taxable: true,  unitCost: 0,   quantity: 1,  standard: true },
-  { group: 'site-field', included: false, expense: 'Trailer',            supplier: '', costCode: '01-50-00 Temp Facilities', labourHours: 0, taxable: true,  unitCost: 0,   quantity: 1,  standard: true },
-  { group: 'site-field', included: true,  expense: 'Fuel, Oil and Gas',  supplier: 'Ampol Fleet', costCode: '01-50-00 Temp Facilities', labourHours: 0, taxable: true, unitCost: 25, quantity: 5, standard: true, notes: 'Site access and parking — 5 days' },
-  { group: 'site-field', included: false, expense: 'Supervision',        supplier: '', costCode: '26-05-00 Common Work',     labourHours: 0, taxable: false, unitCost: 0,   quantity: 1,  standard: true },
-  { group: 'site-field', included: false, expense: 'Temporary Power',    supplier: '', costCode: '01-50-00 Temp Facilities', labourHours: 0, taxable: true,  unitCost: 0,   quantity: 1,  standard: true },
-  { group: 'site-field', included: false, expense: 'Demolition',         supplier: '', costCode: '26-05-00 Common Work',     labourHours: 0, taxable: false, unitCost: 0,   quantity: 1,  standard: true },
-  { group: 'site-field', included: false, expense: 'Cleanup',            supplier: '', costCode: '01-70-00 Closeout',        labourHours: 0, taxable: false, unitCost: 0,   quantity: 1,  standard: true },
+  { group: 'site-field', included: false, expense: 'Telephone',          supplier: '', costCode: '01-50-00 Temp Facilities', taxable: true,  unitCost: 0,   quantity: 1,  standard: true },
+  { group: 'site-field', included: false, expense: 'Trailer',            supplier: '', costCode: '01-50-00 Temp Facilities', taxable: true,  unitCost: 0,   quantity: 1,  standard: true },
+  { group: 'site-field', included: true,  expense: 'Fuel, Oil and Gas',  supplier: 'Ampol Fleet', costCode: '01-50-00 Temp Facilities', taxable: true, unitCost: 25, quantity: 5, standard: true, notes: 'Site access and parking — 5 days' },
+  { group: 'site-field', included: false, expense: 'Supervision',        supplier: '', costCode: '26-05-00 Common Work',     taxable: false, unitCost: 0,   quantity: 1,  standard: true },
+  { group: 'site-field', included: false, expense: 'Temporary Power',    supplier: '', costCode: '01-50-00 Temp Facilities', taxable: true,  unitCost: 0,   quantity: 1,  standard: true },
+  { group: 'site-field', included: false, expense: 'Demolition',         supplier: '', costCode: '26-05-00 Common Work',     taxable: false, unitCost: 0,   quantity: 1,  standard: true },
+  { group: 'site-field', included: false, expense: 'Cleanup',            supplier: '', costCode: '01-70-00 Closeout',        taxable: false, unitCost: 0,   quantity: 1,  standard: true },
 
   // Commercial and Miscellaneous
-  { group: 'commercial-misc', included: false, expense: 'Interest',              supplier: '', costCode: '01-50-00 Temp Facilities', labourHours: 0, taxable: false, unitCost: 0, quantity: 1, standard: true },
-  { group: 'commercial-misc', included: false, expense: 'Warranty / Guarantee',  supplier: '', costCode: '01-70-00 Closeout',        labourHours: 0, taxable: false, unitCost: 0, quantity: 1, standard: true },
-  { group: 'commercial-misc', included: false, expense: 'Miscellaneous',         supplier: '', costCode: '26-05-00 Common Work',     labourHours: 0, taxable: true,  unitCost: 0, quantity: 1, standard: true },
+  { group: 'commercial-misc', included: false, expense: 'Interest',              supplier: '', costCode: '01-50-00 Temp Facilities', taxable: false, unitCost: 0, quantity: 1, standard: true },
+  { group: 'commercial-misc', included: false, expense: 'Warranty / Guarantee',  supplier: '', costCode: '01-70-00 Closeout',        taxable: false, unitCost: 0, quantity: 1, standard: true },
+  { group: 'commercial-misc', included: false, expense: 'Miscellaneous',         supplier: '', costCode: '26-05-00 Common Work',     taxable: true,  unitCost: 0, quantity: 1, standard: true },
 ];
 
 // ─── Equipment rental ─────────────────────────────────────────────────────────

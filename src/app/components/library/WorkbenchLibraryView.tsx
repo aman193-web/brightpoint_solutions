@@ -99,7 +99,9 @@ interface Draft {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function WorkbenchLibraryView({ activeLib, viewSwitcher, libraryPicker }: {
+export function WorkbenchLibraryView({ activeLib, modeSwitcher, viewSwitcher, libraryPicker }: {
+  /** Browse | Build. Rendered first so it sits identically in every mode. */
+  modeSwitcher?: React.ReactNode;
   activeLib: Library;
   viewSwitcher: React.ReactNode;
   libraryPicker?: React.ReactNode;
@@ -690,6 +692,8 @@ export function WorkbenchLibraryView({ activeLib, viewSwitcher, libraryPicker }:
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden', background: '#F6F7F9' }}>
       {/* One toolbar, one search across both indexes */}
       <div className="bp-toolbar" style={{ padding: '10px 16px', background: 'white', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
+        {modeSwitcher}
+
         <div className="bp-toolbar-grow" style={{ position: 'relative', flex: 1, minWidth: 200, maxWidth: 380 }}>
           <Search size={13} color="#9CA3AF" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
           <input
