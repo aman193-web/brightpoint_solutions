@@ -9,7 +9,8 @@ import {
   CategoryCode, Assembly, Part, Library,
   CATEGORIES, ASSEMBLY_SUBCATS, typesFor, ALL_ASSEMBLIES, categoryOf,
   PART_CATEGORIES, MASTER_PARTS, PART_DRAG_TYPE, dragState,
-  STATUS_CFG, BOMItem, contextsForCategory,
+  STATUS_CFG, BOMItem, contextsForCategory, byRecentlyAdded, defaultMeasureType,
+  laborTypeOf, laborHoursOf, laborCostOf, laborRateSourceOf, pricingSourceOf,
 } from './libraryData';
 import {
   useTakeoffQueue, enqueue, updateEntry, removeEntry, clearQueue, queueTotals,
@@ -19,7 +20,13 @@ import {
 } from './libraryBuild';
 import { SymbolMark, SymbolPicker } from './SymbolControl';
 import { SaveAssemblyModal } from './SaveAssemblyModal';
-import { ContextId, PROJECT_CONTEXTS, partAllowed } from './libraryFilters';
+import {
+  ContextId, PROJECT_CONTEXTS, partAllowed, assemblyAllowed, useContextFilters,
+} from './libraryFilters';
+import { addRecord } from '../../lib/takeoffRecords';
+import { COMPANY_LABOR_RATE } from '../../lib/costing';
+import { getGroups } from '../../lib/projectBreakdown';
+import { defaultClassification } from '../../lib/takeoffClassification';
 import { FilterBar } from './FilterBar';
 import { useRecentAssemblies, recordSaved, createdAgo } from '../../lib/recentAssemblies';
 
@@ -180,6 +187,23 @@ function ResizeHandle({ onStart }: { onStart: (e: React.MouseEvent) => void }) {
  */
 type SortMode = 'recent' | 'az' | 'za' | 'code' | 'category';
 
+/**
+ * Parts have their own order menu.
+ *
+ * Separate from the assemblies' `SortMode` because the keys genuinely differ — a
+ * part has a price and no category path, an assembly has a code and no price —
+ * and one shared union would offer each band options it cannot honour.
+ */
+type PartSort = 'catalogue' | 'recent' | 'az' | 'za' | 'price';
+
+const PART_SORT_OPTIONS: { id: PartSort; label: string }[] = [
+  { id: 'catalogue', label: 'Catalogue order' },
+  { id: 'recent',    label: 'Recently added' },
+  { id: 'az',        label: 'Name A\u2013Z' },
+  { id: 'za',        label: 'Name Z\u2013A' },
+  { id: 'price',     label: 'Price high\u2013low' },
+];
+
 const SORT_OPTIONS: { id: SortMode; label: string }[] = [
   { id: 'recent',   label: 'Recently created' },
   { id: 'az',       label: 'Name A–Z' },
@@ -218,12 +242,27 @@ function FlatList({ rows, emptyText }: {
   rows: { id: string; primary: string; secondary: string; path?: string; badge?: React.ReactNode; active?: boolean; right?: React.ReactNode; lead?: React.ReactNode; onClick?: () => void; draggable?: boolean; onDragStart?: (e: React.DragEvent) => void; onDragEnd?: () => void }[];
   emptyText: string;
 }) {
+  /*
+   * Keep the active row on screen.
+   *
+   * The list runs to 124 rows in a band a few hundred pixels tall, so a row
+   * highlighted because the BOM selected it is invisible unless it is scrolled
+   * to. `nearest` leaves an already-visible row alone rather than yanking the
+   * list under the estimator's cursor.
+   */
+  const activeId = rows.find((r) => r.active)?.id ?? null;
+  const activeRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (activeId && activeRef.current) activeRef.current.scrollIntoView({ block: 'nearest' });
+  }, [activeId]);
+
   if (rows.length === 0) return <EmptyColumn text={emptyText} />;
   return (
     <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, background: 'white' }}>
       {rows.map((r) => (
         <div
           key={r.id}
+          ref={r.active ? activeRef : undefined}
           onClick={r.onClick}
           draggable={r.draggable}
           onDragStart={r.onDragStart}
@@ -376,12 +415,29 @@ function TakeoffQueueModal({ onClose }: { onClose: () => void }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryPicker }: {
+/**
+ * What changes when Browse is hosted inside Manual Takeoff.
+ *
+ * The component is otherwise identical in both places — the point of reusing it.
+ * This only redirects where "Add to Takeoff" sends things: in Libraries it queues
+ * an assembly for the drawing, in Manual Takeoff it writes a classified project
+ * record with no drawing involved.
+ */
+export interface TakeoffModeHooks {
+  /** Shown on the action, so the estimator knows what the record will inherit. */
+  classificationLabel: string;
+  onAddAssembly: (asm: Assembly, qty: number) => void;
+  onAddPart: (part: Part, qty: number) => void;
+}
+
+export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryPicker, takeoffMode }: {
   activeLib: Library;
   libraries?: Library[];
-  /** Browse | Build. Last in the toolbar, right-aligned. */
-  viewSwitcher: React.ReactNode;
+  /** Browse | Build. Last in the toolbar, right-aligned. Absent in Manual Takeoff. */
+  viewSwitcher?: React.ReactNode;
   libraryPicker?: React.ReactNode;
+  /** Present only when Browse is embedded in Manual Takeoff. */
+  takeoffMode?: TakeoffModeHooks;
 }) {
   // Assembly cascade
   const [cat, setCat]           = useState<CategoryCode>('BPC-01');
@@ -408,8 +464,11 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
   /**
    * Building conditions, inherited from Project Setup and overridable here.
    * They narrow the parts on offer; the cascade itself is untouched.
+   *
+   * Held in the shared store so the selection survives a switch to Build Mode
+   * and back — the conditions describe the job, not the screen.
    */
-  const [ctxFilters, setCtxFilters] = useState<ContextId[]>(PROJECT_CONTEXTS);
+  const [ctxFilters, setCtxFilters] = useContextFilters();
 
   /**
    * Assemblies saved this session. They live in the shared store because Build
@@ -441,6 +500,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
   const [partCat, setPartCat]       = useState<string | null>('Hangers & Supports');
   const [partSubcat, setPartSubcat] = useState<string | null>('T-Bar');
   const [partSearch, setPartSearch] = useState('');
+  const [partSort, setPartSort] = useState<PartSort>('catalogue');
   const [partFavs, setPartFavs]     = useState<Set<string>>(new Set(['pt-38', 'pt-4']));
 
   // Selected assembly's working BOM
@@ -448,7 +508,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
   const [selectedBomId, setSelectedBomId] = useState<string | null>(null);
   const [dropActive, setDropActive]     = useState(false);
   /** Starts at zero: opening an assembly must not put work in the job. */
-  const [count, setCount]               = useState('0');
+  const [count, setCount]               = useState('1');
 
   // Drag the divider between the two cascades.
   useEffect(() => {
@@ -474,7 +534,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
    * Saved assemblies are filed here like any other — Recently Created is only a
    * shortcut to them, never a separate store.
    */
-  const assemblies = useMemo(() => {
+  const allAssemblies = useMemo(() => {
     const seen = new Set<string>();
     const out: Assembly[] = [];
     for (const a of [...ALL_ASSEMBLIES, ...customAssemblies.map((c) => c.a), ...recent.map((r) => r.assembly)]) {
@@ -484,6 +544,20 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
     }
     return out;
   }, [customAssemblies, recent]);
+
+  /**
+   * The assemblies the active building conditions permit.
+   *
+   * Narrowed here, at the source every other view reads from, so the cascade
+   * counts, the branch, the search results and the flat list cannot disagree
+   * about what the filters mean. Filtering only where the rows are drawn leaves
+   * "Fixtures · 42" pointing at a branch holding eleven.
+   */
+  const assemblies = useMemo(
+    () => allAssemblies.filter((a) => assemblyAllowed(a, ctxFilters)),
+    [allAssemblies, ctxFilters],
+  );
+  const asmHidden = allAssemblies.length - assemblies.length;
 
   /** Custom and saved assemblies carry their category explicitly. */
   const catOf = useMemo(() => {
@@ -495,6 +569,26 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
   }, [customAssemblies, recent]);
 
   const selectedAsm = asmId ? assemblies.find((a) => a.id === asmId) ?? null : null;
+
+  /**
+   * A part opened for inspection in the right-hand panel.
+   *
+   * The panel used to show an assembly's bill of materials and nothing else, so
+   * clicking a part in the Parts band told the estimator nothing about the part.
+   * Selecting either now fills the same panel, and the most recent selection wins —
+   * which is why picking an assembly clears this and picking a part clears the
+   * assembly's hold on the panel rather than both fighting over it.
+   */
+  const [partDetailId, setPartDetailId] = useState<string | null>(null);
+  const selectedPartDetail = partDetailId
+    ? (MASTER_PARTS.find((pt) => pt.id === partDetailId) ?? null)
+    : null;
+
+  /** Clicking a part: inspect it, and keep the BOM row selection in step. */
+  function inspectPart(pt: Part) {
+    setPartDetailId(pt.id);
+    selectBomByPart(pt);
+  }
 
   /** An assembly's mark: whatever was chosen, else a stable derived default. */
   /*
@@ -538,8 +632,13 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
 
   function selectAssembly(a: Assembly) {
     setAsmId(a.id);
+    setPartDetailId(null);
     setBom(a.bom);
     setSelectedBomId(null);
+    // Back to one for the next assembly: a count typed for the last one is not a
+    // statement about this one, and carrying it silently is how 12 of the wrong
+    // fixture reaches the plan.
+    setCount('1');
     // Keep the cascade in step when the pick came from a search hit.
     setCat(catOf(a));
     if (a.subcat) setSubcat(a.subcat);
@@ -574,10 +673,20 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
    */
   const partFlatList = useMemo(() => {
     const q = partSearch.trim().toLowerCase();
-    if (!q) return allowedParts;
-    return allowedParts.filter((pt) =>
-      pt.name.toLowerCase().includes(q) || pt.code.toLowerCase().includes(q) || pt.mfr.toLowerCase().includes(q));
-  }, [allowedParts, partSearch]);
+    const rows = q
+      ? allowedParts.filter((pt) =>
+        pt.name.toLowerCase().includes(q) || pt.code.toLowerCase().includes(q) || pt.mfr.toLowerCase().includes(q))
+      : allowedParts;
+    /* Only the list view sorts. The cascade's third column is the contents of one
+       subcategory, where the catalogue's own order is the meaningful one. */
+    switch (partSort) {
+      case 'recent': return [...rows].sort(byRecentlyAdded);
+      case 'az': return [...rows].sort((a, b) => a.name.localeCompare(b.name));
+      case 'za': return [...rows].sort((a, b) => b.name.localeCompare(a.name));
+      case 'price': return [...rows].sort((a, b) => b.price - a.price);
+      default: return rows;
+    }
+  }, [allowedParts, partSearch, partSort]);
 
   /**
    * Applies the chosen order.
@@ -630,6 +739,30 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
     toast.success('Component replaced', { description: `${target?.name ?? 'Component'} → ${part.name}` });
   }
 
+  /*
+   * One selection across the two panels.
+   *
+   * The BOM and the parts list are two views of the same component, so selecting
+   * a row in either has to light up the other — otherwise "click a row, then
+   * Replace" leaves the estimator checking by eye that the part they are about to
+   * swap in is not the one already there. Matched on part code: a BOM row records
+   * the code, not the catalogue id, and the code is what identifies the material
+   * on a purchase order.
+   */
+  const selectedBomRow = bom.find((i) => i.id === selectedBomId) ?? null;
+
+  /* Code first, then name: a parametrically configured row carries a synthetic
+     code but names the real part, and those are the rows worth tracing. */
+  const partMatchesBomSelection = (pt: Part) => !!selectedBomRow
+    && (pt.code === selectedBomRow.code || pt.name === selectedBomRow.name);
+
+  function selectBomByPart(pt: Part) {
+    const match = bom.find((i) => i.code === pt.code) ?? bom.find((i) => i.name === pt.name);
+    // A part not on this assembly clears the selection rather than leaving the
+    // previous row lit, which would claim a link that is not there.
+    setSelectedBomId(match ? match.id : null);
+  }
+
   /** Editable component quantity — a bracket goes 1 → 10, wire 20 ft → 10 ft. */
   function setBomQty(id: string, qty: number) {
     setBom((prev) => prev.map((i) => (i.id === id
@@ -647,13 +780,43 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
   /**
    * Send the assembly to the takeoff screen ready to count.
    *
-   * It arrives at zero on purpose. Pre-adding a count of one means every
-   * assembly the estimator opens and abandons leaves a phantom fixture in the
-   * job — the count comes from clicking the plan, not from opening a panel.
+   * The count starts at **1** (client, 11 Aug 2026). It previously started at
+   * zero on the reasoning that a count should come from clicking the plan rather
+   * than from opening a panel — but nothing is queued until Add to Takeoff is
+   * pressed, so the abandoned-panel case that argued for zero cannot occur, and
+   * a default of zero made the common case (one of these, here) a two-step.
+   * Still editable, and still whatever the estimator types.
    */
   function addToTakeoff() {
     if (!selectedAsm) { toast.error('Select an assembly first'); return; }
     const qty = Math.max(0, parseInt(count, 10) || 0);
+    const measure = defaultMeasureType(catOf(selectedAsm), `${selectedAsm.type ?? ''} ${selectedAsm.subcat ?? ''} ${selectedAsm.name}`);
+
+    /*
+     * Libraries → Takeoff writes a **project takeoff record**.
+     *
+     * It used to write only to `takeoffQueue`, a list nothing downstream read — so
+     * an assembly "sent to takeoff" from Libraries never became takeoff. The record
+     * is the real thing now, classified by the project's own defaults, and it shows
+     * up in the Takeoff List beside everything else.
+     *
+     * The queue entry is still written: the Takeoff workspace uses it to arm the
+     * right tool for an assembly the estimator intends to place, which is a
+     * different job from recording the quantity.
+     */
+    addRecord({
+      sourceType: 'manual',
+      assemblyId: selectedAsm.id,
+      name: selectedAsm.name,
+      code: selectedAsm.code,
+      unit: measure === 'linear' ? 'LF' : 'EA',
+      measurementType: measure,
+      quantity: measure === 'linear' ? 1 : Math.max(1, qty),
+      measuredLength: measure === 'linear' ? Math.max(1, qty) : undefined,
+      classification: defaultClassification(getGroups()),
+      notes: 'Sent from Libraries.',
+    });
+
     enqueue({
       assemblyId: selectedAsm.id,
       name: selectedAsm.name,
@@ -665,12 +828,13 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
       componentCount: bom.length,
       materialCost: matCost,
       labourHours: labourHrs,
-      sheet: 'E-101',
+      sheet: 'E-1',
+      /* The same rule Build Mode's header uses, so an assembly queued from Browse
+         arms the same tool as one queued straight after building it. */
+      measure,
     });
-    toast.success('Ready to count on the plan', {
-      description: qty > 0
-        ? `${selectedAsm.name} — starting at ${qty}.`
-        : `${selectedAsm.name} — click the plan to count. Nothing is added until you do.`,
+    toast.success('Added to the project takeoff', {
+      description: `${selectedAsm.name} × ${Math.max(1, qty)} — in the Takeoff List, and ready to place on a drawing.`,
     });
   }
 
@@ -796,18 +960,25 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
 
         {libraryPicker}
 
-        <button
-          onClick={() => setShowQueue(true)}
-          title="Assemblies sent to takeoff"
-          style={{ height: 34, padding: '0 12px', border: `1px solid ${takeoffQueue.length ? '#BFDBFE' : '#E5E7EB'}`, borderRadius: 8, background: takeoffQueue.length ? '#EFF6FF' : 'white', fontSize: 12, fontWeight: takeoffQueue.length ? 600 : 400, color: takeoffQueue.length ? '#1D4ED8' : '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
-        >
-          <ClipboardList size={13} /> Takeoff
-          {takeoffQueue.length > 0 && (
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'white', background: '#2563EB', borderRadius: 9999, padding: '1px 6px' }}>
-              {queueTotals(takeoffQueue).placements}
-            </span>
-          )}
-        </button>
+        {/*
+          The queue button belongs to the standalone Libraries page. Inside Manual
+          Takeoff the Takeoff List below *is* the queue, and offering a second one
+          would raise the question of which is real.
+        */}
+        {!takeoffMode && (
+          <button
+            onClick={() => setShowQueue(true)}
+            title="Assemblies sent to takeoff"
+            style={{ height: 34, padding: '0 12px', border: `1px solid ${takeoffQueue.length ? '#BFDBFE' : '#E5E7EB'}`, borderRadius: 8, background: takeoffQueue.length ? '#EFF6FF' : 'white', fontSize: 12, fontWeight: takeoffQueue.length ? 600 : 400, color: takeoffQueue.length ? '#1D4ED8' : '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
+          >
+            <ClipboardList size={13} /> Takeoff
+            {takeoffQueue.length > 0 && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'white', background: '#2563EB', borderRadius: 9999, padding: '1px 6px' }}>
+                {queueTotals(takeoffQueue).placements}
+              </span>
+            )}
+          </button>
+        )}
 
         <div style={{ flexShrink: 0 }}>{viewSwitcher}</div>
       </div>
@@ -870,7 +1041,13 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
               </select>
             </label>
 
-            
+            {/* Same badge the parts band carries, for the same reason: a shorter
+                list with no explanation reads as a missing library. */}
+            {asmHidden > 0 && (
+              <span title="Hidden by the active building conditions" style={{ fontSize: 10, color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', padding: '2px 7px', borderRadius: 999, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                {asmHidden} filtered out
+              </span>
+            )}
           </SectionBar>
 
           {!asmCollapsed && (asmMode === 'list' ? (
@@ -907,7 +1084,10 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                 <ColumnRow
                   key={c.code}
                   label={c.name}
-                  sub={`${c.code} · ${c.count}`}
+                  /* Counted from the live list, not the static `c.count` on the
+                     category metadata: with filters on, a hard-coded 42 sat above
+                     a branch holding none of them. */
+                  sub={`${c.code} · ${countInBranch(c.code)}`}
                   active={c.code === cat && !search}
                   chevron
                   onClick={() => { setCat(c.code); setSubcat(null); setType(null); setSearch(''); }}
@@ -950,7 +1130,17 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
 
             <Column title={search ? 'Matching assemblies' : 'Assembly'} count={assemblyList.length} flex>
               {assemblyList.length === 0
-                ? <EmptyColumn text="No assemblies in this branch yet. The catalogue import will populate it." />
+                ? (
+                  <EmptyColumn
+                    /* An empty branch caused by the filters is not an empty
+                       branch. Saying "the catalogue import will populate it"
+                       when the rows exist and are hidden sends the estimator
+                       looking for a data problem that isn't there. */
+                    text={asmHidden > 0
+                      ? `Nothing here matches the active building conditions — ${asmHidden} assemblies are filtered out. Clear a filter to see them.`
+                      : 'No assemblies in this branch yet. The catalogue import will populate it.'}
+                  />
+                )
                 : sortRows(assemblyList).map((a) => {
                   const st = STATUS_CFG[a.status];
                   const fav = asmFavs.has(a.id);
@@ -1042,6 +1232,23 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                 style={{ width: '100%', height: 24, paddingLeft: 24, paddingRight: 8, border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 11, outline: 'none', boxSizing: 'border-box', background: 'white' }}
               />
             </div>
+            {/* Ordering is a list-view control: the cascade shows one branch, where
+                the catalogue's own order is the meaningful one. */}
+            {partsMode === 'list' && (
+              <select
+                value={partSort}
+                onChange={(e) => setPartSort(e.target.value as PartSort)}
+                aria-label="Sort parts"
+                style={{
+                  height: 24, padding: '0 6px', border: '1px solid #E5E7EB', borderRadius: 6,
+                  fontSize: 11, background: 'white', outline: 'none', cursor: 'pointer', flexShrink: 0,
+                  color: partSort === 'catalogue' ? '#6B7280' : '#1D4ED8',
+                  fontWeight: partSort === 'catalogue' ? 400 : 600,
+                }}
+              >
+                {PART_SORT_OPTIONS.map((o) => <option key={o.id} value={o.id}>Sort: {o.label}</option>)}
+              </select>
+            )}
             {partsHidden > 0 && (
               <span title="Hidden by the active building conditions" style={{ fontSize: 10, color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', padding: '2px 7px', borderRadius: 999, flexShrink: 0, whiteSpace: 'nowrap' }}>
                 {partsHidden} filtered out
@@ -1059,6 +1266,9 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                   primary: pt.name,
                   secondary: `${pt.code} · ${pt.mfr} · $${pt.price.toFixed(2)}/${pt.unit}`,
                   path: `${pt.cat} › ${pt.subcat}`,
+                  /* Synced with the BOM in both directions. */
+                  active: partMatchesBomSelection(pt),
+                  onClick: () => inspectPart(pt),
                   draggable: true,
                   onDragStart: (e: React.DragEvent) => {
                     dragState.part = pt;
@@ -1069,7 +1279,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                   onDragEnd: () => { dragState.part = null; },
                   right: (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                      <button onClick={(e) => { e.stopPropagation(); addPart(pt); }} title="Add to assembly"
+                      <button onClick={(e) => { e.stopPropagation(); if (takeoffMode) takeoffMode.onAddPart(pt, 1); else addPart(pt); }} title={takeoffMode ? 'Take this part off — quantity editable in the Takeoff List' : 'Add to assembly'}
                         style={{ width: 20, height: 20, border: 'none', background: '#EFF6FF', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Plus size={10} color="#1D4ED8" />
                       </button>
@@ -1128,6 +1338,9 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                           key={pt.id}
                           label={pt.name}
                           sub={`${pt.code} · ${pt.mfr} · $${pt.price.toFixed(2)}/${pt.unit}`}
+                          /* Same two-way selection as the list view. */
+                          active={partMatchesBomSelection(pt)}
+                          onClick={() => inspectPart(pt)}
                           draggable
                           title="Drag onto the assembly BOM"
                           onDragStart={(e) => {
@@ -1139,7 +1352,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                           onDragEnd={() => { dragState.part = null; }}
                           right={
                             <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                              <button onClick={(e) => { e.stopPropagation(); addPart(pt); }} title="Add to assembly"
+                              <button onClick={(e) => { e.stopPropagation(); if (takeoffMode) takeoffMode.onAddPart(pt, 1); else addPart(pt); }} title={takeoffMode ? 'Take this part off — quantity editable in the Takeoff List' : 'Add to assembly'}
                                 style={{ width: 20, height: 20, border: 'none', background: '#EFF6FF', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <Plus size={10} color="#1D4ED8" />
                               </button>
@@ -1223,7 +1436,89 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
             </button>
           </div>
 
-          {selectedAsm ? (
+          {selectedPartDetail ? (
+            /*
+              Part detail, in the same panel the assembly BOM uses.
+              --------------------------------------------------
+              Deliberately the same slot and the same shape — header, tags, a table
+              of facts, an action at the foot — so inspecting a part and inspecting
+              an assembly are one habit rather than two. A part has no bill of
+              materials, so what fills the middle is the part's own record: where it
+              sits in the catalogue, what it costs, and what it takes to install.
+            */
+            <>
+              <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{selectedPartDetail.name}</div>
+                    <div style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'IBM Plex Mono, monospace', marginTop: 1 }}>
+                      {selectedPartDetail.code}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setPartDetailId(null)}
+                    title="Back to the assembly"
+                    aria-label="Close part detail"
+                    style={{ width: 24, height: 24, border: '1px solid #E5E7EB', borderRadius: 6, background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                  >
+                    <X size={11} color="#6B7280" />
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 7 }}>
+                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: '#EFF6FF', color: '#1D4ED8' }}>Part</span>
+                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: '#F3F4F6', color: '#6B7280' }}>{selectedPartDetail.cat}</span>
+                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: '#F3F4F6', color: '#6B7280' }}>{selectedPartDetail.subcat}</span>
+                </div>
+              </div>
+
+              <div className="bp-lib-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+                {([
+                  ['Manufacturer', selectedPartDetail.mfr || '—'],
+                  ['Unit', selectedPartDetail.unit],
+                  ['Material price', `$${selectedPartDetail.price.toFixed(2)} / ${selectedPartDetail.unit}`],
+                  ['Pricing source', pricingSourceOf(selectedPartDetail)],
+                  ['Labour type', laborTypeOf(selectedPartDetail)],
+                  ['Labour rate source', laborRateSourceOf(selectedPartDetail)],
+                  ['Labour hours', `${laborHoursOf(selectedPartDetail).toFixed(3)} / ${selectedPartDetail.unit}`],
+                  ['Labour cost', `$${laborCostOf(selectedPartDetail, COMPANY_LABOR_RATE).toFixed(2)}`],
+                  ['BOM group', selectedPartDetail.bomGroup],
+                ] as [string, string][]).map(([label, value], i) => (
+                  <div
+                    key={label}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderTop: i === 0 ? 'none' : '1px solid #F9FAFB' }}
+                  >
+                    <span style={{ fontSize: 11, color: '#6B7280', flex: 1 }}>{label}</span>
+                    <span style={{ fontSize: 11.5, fontWeight: 500, color: '#111827', fontFamily: /price|cost|hours/i.test(label) ? 'IBM Plex Mono, monospace' : undefined, textAlign: 'right' }}>
+                      {value}
+                    </span>
+                  </div>
+                ))}
+                <div style={{ padding: '10px 14px', fontSize: 10, color: '#9CA3AF', lineHeight: '15px' }}>
+                  Labour cost is {laborHoursOf(selectedPartDetail).toFixed(3)} hrs at the company blended
+                  rate of ${COMPANY_LABOR_RATE.toFixed(2)}/hr. Edit a part's labour in Settings → Parts Library.
+                </div>
+              </div>
+
+              <div style={{ flexShrink: 0, borderTop: '1px solid #E5E7EB', padding: 14, background: '#FAFAFA', display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => {
+                    if (takeoffMode) takeoffMode.onAddPart(selectedPartDetail, 1);
+                    else addPart(selectedPartDetail);
+                  }}
+                  style={{ flex: 1, height: 32, border: 'none', borderRadius: 7, background: '#2563EB', fontSize: 12, fontWeight: 600, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                >
+                  <Plus size={12} /> {takeoffMode ? 'Add to Takeoff' : 'Add to assembly'}
+                </button>
+                <button
+                  onClick={() => replacePart(selectedPartDetail)}
+                  title={selectedBomId ? 'Replace the selected BOM component' : 'Select a BOM component first'}
+                  style={{ height: 32, padding: '0 12px', border: '1px solid #E5E7EB', borderRadius: 7, background: 'white', fontSize: 12, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                >
+                  <RefreshCw size={11} /> Replace
+                </button>
+              </div>
+            </>
+          ) : selectedAsm ? (
             <>
               <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #E5E7EB', flexShrink: 0, position: 'relative' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -1232,7 +1527,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                     <div style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'IBM Plex Mono, monospace', marginTop: 1 }}>{selectedAsm.code}</div>
                   </div>
                   {/*
-                    Shape and colour live with the assembly and are changeable
+                    Shape and color live with the assembly and are changeable
                     here and on the takeoff screen, so the estimator always knows
                     which assembly the marks on the plan belong to.
                   */}
@@ -1296,7 +1591,18 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                         type="number" min={0} step={item.unit === 'LF' ? 5 : 1} value={item.qty}
                         aria-label={`${item.name} quantity`}
                         onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => setBomQty(item.id, parseFloat(e.target.value) || 0)}
+                        /*
+                          A blank field is mid-edit, not a quantity of zero.
+                          `parseFloat(x) || 0` would commit 0 the instant the
+                          estimator cleared the box to retype — the same coercion
+                          bug the rate fields are careful to avoid. Nothing is
+                          written until a real number arrives; a component that
+                          genuinely does not belong is removed, not zeroed.
+                        */
+                        onChange={(e) => {
+                          const n = parseFloat(e.target.value);
+                          if (Number.isFinite(n) && n >= 0) setBomQty(item.id, n);
+                        }}
                         style={{
                           width: 54, height: 26, padding: '0 5px', borderRadius: 5, fontSize: 11,
                           fontFamily: 'IBM Plex Mono, monospace', textAlign: 'right', outline: 'none',
@@ -1330,21 +1636,49 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                 ))}
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                  <label style={{ fontSize: 11, color: '#6B7280', flexShrink: 0 }} title="Leave at 0 and count on the plan — a starting count is optional">Count</label>
+                  <label style={{ fontSize: 11, color: '#6B7280', flexShrink: 0 }} title={takeoffMode ? 'How many of these the job has' : 'Leave at 0 and count on the plan — a starting count is optional'}>
+                    {takeoffMode ? 'Qty' : 'Count'}
+                  </label>
                   <input
                     type="number"
                     min={0}
                     value={count}
                     onChange={(e) => setCount(e.target.value)}
+                    aria-label="Quantity to add to takeoff"
                     style={{ width: 56, height: 32, padding: '0 8px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', textAlign: 'right', outline: 'none' }}
                   />
                   <button
-                    onClick={addToTakeoff}
+                    onClick={() => {
+                      if (!takeoffMode) { addToTakeoff(); return; }
+                      if (!selectedAsm) return;
+                      const qty = Math.max(0, parseFloat(count) || 0);
+                      if (qty <= 0) {
+                        toast.error('Enter a quantity', {
+                          description: 'A manual record is a quantity — there is no drawing to count it from.',
+                        });
+                        return;
+                      }
+                      takeoffMode.onAddAssembly(selectedAsm, qty);
+                    }}
+                    title={takeoffMode
+                      ? `Creates a takeoff record classified ${takeoffMode.classificationLabel}`
+                      : undefined}
                     style={{ flex: 1, height: 32, border: 'none', borderRadius: 7, background: '#2563EB', fontSize: 12, fontWeight: 600, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
                   >
-                    <Play size={11} /> Add to Takeoff
+                    {takeoffMode ? <Plus size={12} /> : <Play size={11} />} Add to Takeoff
                   </button>
                 </div>
+                {/*
+                  A manual record cannot be counted later on a plan it was never
+                  placed on, so the quantity is the whole record — said here rather
+                  than discovered when the number is wrong.
+                */}
+                {takeoffMode && (
+                  <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 6, lineHeight: '14px' }}>
+                    Records as <strong style={{ color: '#6B7280' }}>{takeoffMode.classificationLabel}</strong>.
+                    Editable in the Takeoff List, and you can still place it on a drawing later.
+                  </div>
+                )}
               </div>
             </>
           ) : (

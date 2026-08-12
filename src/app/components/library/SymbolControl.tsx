@@ -28,7 +28,7 @@ export function SymbolMark({ symbol, size = 16 }: { symbol: TakeoffSymbol; size?
   );
 }
 
-/** Shape and colour picker, opened from the assembly panel and the takeoff queue. */
+/** Shape and color picker, opened from the assembly panel and the takeoff queue. */
 export function SymbolPicker({ symbol, onChange, onClose }: {
   symbol: TakeoffSymbol; onChange: (s: TakeoffSymbol) => void; onClose: () => void;
 }) {
@@ -66,13 +66,13 @@ export function SymbolPicker({ symbol, onChange, onClose }: {
         />
       )}
 
-      <div style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '10px 0 6px' }}>Colour</div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '10px 0 6px' }}>Color</div>
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
         {SYMBOL_COLORS.map((c) => (
           <button
             key={c}
             onClick={() => onChange({ ...symbol, color: c })}
-            aria-label={`Colour ${c}`}
+            aria-label={`Color ${c}`}
             style={{
               width: 24, height: 24, borderRadius: 5, background: c, cursor: 'pointer',
               border: symbol.color === c ? '2px solid #111827' : '1px solid rgba(0,0,0,0.1)',

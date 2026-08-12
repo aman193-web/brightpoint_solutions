@@ -23,6 +23,16 @@ export interface TakeoffQueueEntry {
   labourHours: number;
   /** Sheet the estimator intends to place it on. */
   sheet: string;
+  /**
+   * How this assembly is quantified — clicked, or measured along a path.
+   *
+   * Carried on the queue entry so the tool the Takeoff arms is the one the
+   * estimator chose in the builder, rather than each screen deciding again from
+   * the category and the two eventually disagreeing. Optional so entries queued
+   * before this existed still load; consumers fall back to
+   * `defaultMeasureType()`.
+   */
+  measure?: 'count' | 'linear';
 }
 
 let queue: TakeoffQueueEntry[] = [];

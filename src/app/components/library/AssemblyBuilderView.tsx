@@ -11,9 +11,11 @@ import {
   DIMMING_OPTIONS, EMERGENCY_OPTIONS,
   RACEWAY_TYPES, RACEWAY_SIZES, CONDUCTOR_COUNTS, CONDUCTOR_TYPES, RACEWAY_SUPPORTS,
   BuildKind, kindForCategory, MASTER_PARTS,
+  FEEDER_AMPS, feederMethodAllowed,
+  MeasureType, MEASURE_LABEL, defaultMeasureType,
 } from './libraryData';
 import {
-  ContextId, PROJECT_CONTEXTS, contextLabel, constraintNote,
+  ContextId, PROJECT_CONTEXTS, contextLabel, constraintNote, useContextFilters,
   allowedWiring, allowedMounts, allowedBoxes, allowedCovers, allowedRaceways, allowedSupports,
   choicesFor, RoleChoice, PartRole, addOnsFor, AddOn, partToBomItem,
   aiSuggestionsFor, AiSuggestion,
@@ -56,13 +58,21 @@ const FIELD: React.CSSProperties = {
   color: '#374151',
 };
 
+/*
+ * A labelled configuration field.
+ *
+ * A real `<label>`, not a styled span: the span carried the text visually but was
+ * never associated with the control, so every select in Build Mode reached a
+ * screen reader as an unnamed combobox. Wrapping associates them without any
+ * per-field id plumbing.
+ */
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div style={{ flex: 1, minWidth: 168 }}>
+    <label style={{ flex: 1, minWidth: 168, display: 'block' }}>
       <span style={LABEL}>{label}</span>
       {children}
       {hint && <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>{hint}</div>}
-    </div>
+    </label>
   );
 }
 
@@ -305,7 +315,8 @@ export function AssemblyBuilderView({
 }) {
 
   /** Conditions start from the project and can be overridden here. */
-  const [active, setActive] = useState<ContextId[]>(PROJECT_CONTEXTS);
+  /* Shared with Browse: a mode switch must not discard the estimator's filters. */
+  const [active, setActive] = useContextFilters();
   /**
    * The branch being built. Category is the first decision because it decides
    * which form the rest of the configuration takes, and where the assembly
@@ -384,8 +395,41 @@ export function AssemblyBuilderView({
 
   const mark = () => setTouched(true);
 
+  /**
+   * Feeder ampacity — Feeders (BPC-04) only.
+   *
+   * Kept out of the shared config types: it is one category's question, and
+   * widening `FixtureConfig`/`DeviceConfig` to carry a field only feeders use is
+   * how a config type turns into a bag of everything. It narrows the wiring
+   * methods and names the assembly; it derives no conductor or conduit size.
+   */
+  const [feederAmps, setFeederAmps] = useState('200A');
+  const isFeeder = cat === 'BPC-04';
+
+  /**
+   * How this assembly is taken off: clicked, or measured along a path.
+   *
+   * Follows the assembly by default — a fixture is counted, a conduit run is
+   * measured — and stops following the moment the estimator sets it by hand.
+   * `measureTouched` is the whole mechanism: without it, changing the category
+   * after an override would quietly undo the override, which is the failure that
+   * makes an automatic default worse than none.
+   */
+  const [measureOverride, setMeasureOverride] = useState<MeasureType | null>(null);
+  const autoMeasure = useMemo(
+    () => defaultMeasureType(cat, `${type} ${subcat} ${nameOverride ?? ''}`),
+    [cat, type, subcat, nameOverride],
+  );
+  const measure = measureOverride ?? autoMeasure;
+
   // ── What the conditions permit ─────────────────────────────────────────────
-  const wiringOpts = useMemo(() => allowedWiring(active), [active]);
+  const wiringOpts = useMemo(() => {
+    const permitted = allowedWiring(active);
+    if (!isFeeder) return permitted;
+    /* Removal, not a warning — the same rule the rest of Build Mode follows. */
+    const sized = permitted.filter((o) => feederMethodAllowed(o.label, feederAmps));
+    return sized.length ? sized : permitted;
+  }, [active, isFeeder, feederAmps]);
   const mountOpts = useMemo(() => allowedMounts(active), [active]);
   const boxOpts = useMemo(() => allowedBoxes(active), [active]);
   const racewayOpts = useMemo(() => allowedRaceways(active), [active]);
@@ -483,7 +527,10 @@ export function AssemblyBuilderView({
    * editable — nobody should have to retype the name to make a variant.
    */
   const derivedName = kind === 'generic'
-    ? [type || subcat, CATEGORIES.find((c) => c.code === cat)?.name].filter(Boolean).join(' – ')
+    /* A feeder reads by its rating first — "200A Feeder – EMT with THHN" is how
+       one is named on a drawing and referred to in a conversation. */
+    ? [isFeeder ? `${feederAmps} ${type || subcat}` : (type || subcat),
+      CATEGORIES.find((c) => c.code === cat)?.name].filter(Boolean).join(' – ')
     : configName(cfg);
   const name = nameOverride ?? derivedName;
 
@@ -674,6 +721,15 @@ export function AssemblyBuilderView({
    */
   const SHOW_ROLE_PICKERS = false;
 
+  /**
+   * Fixture type is hidden, the same one-line switch the role pickers use.
+   *
+   * `fxType` itself stays live — the narrowing above sets it, and the derived name
+   * and BOM read it — so this hides a duplicate control rather than removing a
+   * value from the model.
+   */
+  const SHOW_FIXTURE_TYPE = false;
+
   const rolesIn = (roles: PartRole[]) => choices.filter((c) => roles.includes(c.role));
 
   const stepBlock = (roles: PartRole[]) => (SHOW_ROLE_PICKERS
@@ -774,13 +830,58 @@ export function AssemblyBuilderView({
     return hit.length ? hit : DEVICE_TYPES;
   }, [subcat, type]);
 
+  /*
+   * Amps / Sizing — its own step, Feeders only (client, 11 Aug 2026).
+   *
+   * It began inside Selection and was moved out: Selection answers *which* item
+   * this is (category → subcategory → type), and the rating is a separate
+   * decision that drives the ones after it — it narrows the wiring methods and
+   * leads the assembly name. Folding it into Selection made a step that asked two
+   * unrelated questions and summarised them on one line.
+   */
+  const feederSizingStep = {
+    title: 'Amps / Sizing',
+    done: !!feederAmps,
+    summary: feederAmps,
+    body: (
+      <>
+        <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+          <Field
+            label="Amps / Sizing"
+            hint="Narrows the wiring methods offered and leads the feeder's name."
+          >
+            <select
+              value={feederAmps}
+              onChange={(e) => { setFeederAmps(e.target.value); mark(); }}
+              style={FIELD}
+            >
+              {FEEDER_AMPS.map((a) => <option key={a}>{a}</option>)}
+            </select>
+          </Field>
+        </div>
+        {/*
+          Stated on the step that would otherwise look like it had done the sizing
+          for you. Conductor and conduit sizing is a code calculation — termination
+          temperature, ambient correction, fill, derating — and this step does not
+          perform it.
+        */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 12, fontSize: 11, color: '#6B7280', lineHeight: '16px' }}>
+          <Info size={11} style={{ flexShrink: 0, marginTop: 1 }} />
+          The rating narrows which wiring methods are offered. Conductor and conduit
+          sizes stay yours to set — this does not calculate them from the amps.
+        </div>
+      </>
+    ),
+  };
+
   const genericSteps = [
     {
-      n: 1, title: 'Selection', done: !!subcat,
+      title: 'Selection', done: !!subcat,
       summary: [CATEGORIES.find((c) => c.code === cat)?.name, subcat, type].filter(Boolean).join(' · '),
       body: (
         <>
           {branchFields}
+
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 12, fontSize: 11, color: '#6B7280', lineHeight: '16px' }}>
             <Info size={11} style={{ flexShrink: 0, marginTop: 1 }} />
             This category is assembled from parts rather than derived from a parametric
@@ -789,13 +890,15 @@ export function AssemblyBuilderView({
         </>
       ),
     },
+    // Feeders gain a sizing step between choosing the item and wiring it.
+    ...(isFeeder ? [feederSizingStep] : []),
     {
-      n: 2, title: 'Wiring & raceway', done: true,
+      title: 'Wiring & raceway', done: true,
       summary: fxWiringSafe === 'Measure Separately' ? 'Measure separately' : `${fxWiringSafe} · ${fxRun} LF`,
       body: (
         <>
           <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-            <Field label="Wiring method" hint={note ?? undefined}>
+            <Field label="Wire" hint={note ?? undefined}>
               <select value={fxWiringSafe} onChange={(e) => { setFxWiring(e.target.value); mark(); }} style={FIELD}>
                 {wiringOpts.map((o) => <option key={o.id}>{o.label}</option>)}
               </select>
@@ -810,7 +913,7 @@ export function AssemblyBuilderView({
       ),
     },
     {
-      n: 3, title: 'Mounting & supports', done: true,
+      title: 'Mounting & supports', done: true,
       summary: fxMountSafe || 'Not set',
       body: (
         <>
@@ -938,16 +1041,25 @@ export function AssemblyBuilderView({
         <>
           {branchFields}
           <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-            <Field label="Application (C2)">
+            <Field label="Structure Type">
               <select value={fxApp} onChange={(e) => { setFxApp(e.target.value); mark(); }} style={FIELD}>
                 {applicationOptions.map((o) => <option key={o}>{o}</option>)}
               </select>
             </Field>
-            <Field label="Fixture type">
-              <select value={fxType} onChange={(e) => { setFxType(e.target.value); mark(); }} style={FIELD}>
-                {narrowedFixtureTypes.map((o) => <option key={o}>{o}</option>)}
-              </select>
-            </Field>
+            {/*
+              Fixture type is hidden (client, 11 Aug 2026). The Type column of the
+              Category → Subcategory → Type narrowing above already names the
+              fixture — this select restated it and the two could disagree. The
+              state stays live and feeds `derivedName` and the BOM, so nothing
+              downstream loses the value; only the duplicate control is gone.
+            */}
+            {SHOW_FIXTURE_TYPE && (
+              <Field label="Fixture type">
+                <select value={fxType} onChange={(e) => { setFxType(e.target.value); mark(); }} style={FIELD}>
+                  {narrowedFixtureTypes.map((o) => <option key={o}>{o}</option>)}
+                </select>
+              </Field>
+            )}
           </div>
         </>
       ),
@@ -991,7 +1103,7 @@ export function AssemblyBuilderView({
       body: (
         <>
           <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-            <Field label="Wiring method" hint={note ?? undefined}>
+            <Field label="Wire" hint={note ?? undefined}>
               <select value={fxWiringSafe} onChange={(e) => { setFxWiring(e.target.value); mark(); }} style={FIELD}>
                 {wiringOpts.map((o) => <option key={o.id}>{o.label}</option>)}
               </select>
@@ -1061,7 +1173,7 @@ export function AssemblyBuilderView({
       body: (
         <>
           <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-            <Field label="Wiring method" hint={note ?? undefined}>
+            <Field label="Wire" hint={note ?? undefined}>
               <select value={dvWiringSafe} onChange={(e) => { setDvWiring(e.target.value); mark(); }} style={FIELD}>
                 {wiringOpts.map((o) => <option key={o.id}>{o.label}</option>)}
               </select>
@@ -1098,10 +1210,20 @@ export function AssemblyBuilderView({
     },
   ];
 
-  const steps = kind === 'fixture' ? fixtureSteps
+  /*
+   * Numbered from position, not by hand.
+   *
+   * The step sets used to carry their own `n:`, which is fine until a set gains a
+   * step conditionally — Feeders inserting Amps / Sizing after Selection — and the
+   * literals no longer match the order on screen. Numbering here means the badge,
+   * the open/closed key and the "x of y steps set" count cannot disagree with the
+   * list they describe.
+   */
+  const steps = (kind === 'fixture' ? fixtureSteps
     : kind === 'device' ? deviceSteps
     : kind === 'raceway' ? racewaySteps
-    : genericSteps;
+    : genericSteps
+  ).map((st, i) => ({ ...st, n: i + 1 }));
 
   return (
     /*
@@ -1154,6 +1276,47 @@ export function AssemblyBuilderView({
         </span>
 
         {/*
+          Measurement type, in the header because it is a property of the whole
+          assembly rather than one step's answer — and because the estimator wants
+          to see it without opening anything. Auto by category and name; the chip
+          says which of the two it is on, so an override never looks like the
+          default and the default never looks like a decision.
+        */}
+        <div
+          title={measureOverride
+            ? `Set by hand. ${MEASURE_LABEL[autoMeasure]} is the default for this assembly.`
+            : `Default for this assembly. Click the other to override.`}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
+        >
+          <div style={{ display: 'flex', border: `1px solid ${measureOverride ? '#FDE68A' : '#E5E7EB'}`, borderRadius: 7, overflow: 'hidden' }}>
+            {(['count', 'linear'] as MeasureType[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => {
+                  // Picking the automatic value hands control back rather than
+                  // pinning it — otherwise "undo my override" has no gesture.
+                  setMeasureOverride(m === autoMeasure ? null : m);
+                  mark();
+                }}
+                aria-label={`Take off by ${MEASURE_LABEL[m]}`}
+                aria-pressed={measure === m}
+                style={{
+                  height: 32, padding: '0 10px', border: 'none', cursor: 'pointer',
+                  fontSize: 11, fontWeight: measure === m ? 600 : 400, whiteSpace: 'nowrap',
+                  background: measure === m ? '#EFF6FF' : 'white',
+                  color: measure === m ? '#1D4ED8' : '#9CA3AF',
+                }}
+              >
+                {MEASURE_LABEL[m]}
+              </button>
+            ))}
+          </div>
+          <span style={{ fontSize: 9.5, color: measureOverride ? '#B45309' : '#9CA3AF', whiteSpace: 'nowrap' }}>
+            {measureOverride ? 'set' : 'auto'}
+          </span>
+        </div>
+
+        {/*
           Filters are not decoration here — they remove options from the
           configuration dropdowns — so they sit in the toolbar beside what they
           constrain, not on a row of their own. `compact` is what Browse passes:
@@ -1194,6 +1357,28 @@ export function AssemblyBuilderView({
             onAdd={addPartToBom}
             onReplace={replaceSelected}
             canReplace={!!selectedBomId}
+            /* The rail follows Selection → Category, so picking Fixtures upstream
+               shows fixtures here without the estimator saying it twice. */
+            followCategory={cat}
+            /*
+              Two panels, one selection: the rail highlights whatever the bill of
+              materials has selected, and clicking a rail row selects it back.
+
+              Matched on code, falling back to the name. A configured row carries
+              a synthetic code (`WIRE-CFG`) because it came out of the parametric
+              build rather than off a catalogue row, so code alone would leave
+              exactly the rows an estimator most wants to trace unlinked — and
+              those rows do name the real part.
+            */
+            selectedPart={(() => {
+              const row = bom.find((i) => i.id === selectedBomId);
+              return row ? { code: row.code, name: row.name } : null;
+            })()}
+            onSelect={(p) => {
+              const match = bom.find((i) => i.code === p.code)
+                ?? bom.find((i) => i.name === p.name);
+              setSelectedBomId(match ? match.id : null);
+            }}
           />
         </div>
 
@@ -1244,7 +1429,7 @@ export function AssemblyBuilderView({
               <button
                 onClick={() => setSymbolOpen((v) => !v)}
                 title="Takeoff symbol \u2014 the mark this assembly leaves on the plan"
-                aria-label="Choose the takeoff symbol and colour"
+                aria-label="Choose the takeoff symbol and color"
                 style={{ height: 26, padding: '0 6px', border: '1px solid #E5E7EB', borderRadius: 6, background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
               >
                 <SymbolMark symbol={symbolFor(draftSymbolKey, name)} size={14} />

@@ -3,7 +3,7 @@
  *
  * The estimator has to know which assembly they are counting *while* counting.
  * Discovering forty clicks later that the symbol was stale means recounting, so
- * the shape and colour belong to the assembly and are changeable at the takeoff
+ * the shape and color belong to the assembly and are changeable at the takeoff
  * screen rather than buried in a settings page.
  */
 
