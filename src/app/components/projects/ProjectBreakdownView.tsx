@@ -172,6 +172,68 @@ function ValueRow({ group, value, count, isFirst, isLast, onDeleteRequest }: {
   );
 }
 
+/**
+ * The empty column at the end of the board.
+ *
+ * A skeleton of the card it would become — same width, same header slot, three
+ * placeholder value rows — so that the board reads as "these three, and room for
+ * more" rather than "these three". The New Category Group button in the page
+ * header does the same job, but a button above the board does not tell anyone the
+ * *board* is extensible, and custom groups were the part of this screen nobody
+ * was finding.
+ *
+ * Deliberately not a card that collects a name inline: a group needs its type and
+ * its first values decided, which is what the drawer is for. This is the door.
+ */
+function AddGroupCard({ onClick }: { onClick: () => void }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title="Add a category group — Phase, Zone, Cost Code, whatever this job needs"
+      style={{
+        ...CARD,
+        background: hover ? '#F8FBFF' : 'transparent',
+        border: `1.5px dashed ${hover ? '#93C5FD' : '#D1D5DB'}`,
+        cursor: 'pointer', textAlign: 'left', padding: 0,
+        display: 'flex', flexDirection: 'column', alignSelf: 'stretch',
+      }}
+    >
+      <div style={{ padding: '11px 13px 9px', borderBottom: '1px dashed #E5E7EB' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span
+            style={{
+              width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+              background: hover ? '#2563EB' : '#E5E7EB',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <Plus size={12} color={hover ? 'white' : '#9CA3AF'} />
+          </span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: hover ? '#1D4ED8' : '#6B7280' }}>
+            Add Category
+          </span>
+        </div>
+        <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 5, lineHeight: '14px' }}>
+          Another way to slice this job — Phase, Zone, Cost Code.
+        </div>
+      </div>
+
+      {/* Placeholder rows: the shape a group takes, without pretending to hold data. */}
+      <div style={{ padding: '9px 13px', display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
+        {[0, 1, 2].map((i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, opacity: 1 - i * 0.28 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 2, background: '#E5E7EB', flexShrink: 0 }} />
+            <span style={{ flex: 1, height: 7, borderRadius: 4, background: '#F3F4F6' }} />
+          </div>
+        ))}
+      </div>
+    </button>
+  );
+}
+
 function GroupCard({ group, isFirst, isLast, onDeleteRequest }: {
   group: CategoryGroup;
   isFirst: boolean;
@@ -642,6 +704,7 @@ export function ProjectBreakdownView({ onNavigateTo }: { onNavigateTo?: (page: s
               onDeleteRequest={(group, value, count) => setDeleting({ group, value, count })}
             />
           ))}
+          <AddGroupCard onClick={() => setNewGroupOpen(true)} />
         </div>
       </div>
 

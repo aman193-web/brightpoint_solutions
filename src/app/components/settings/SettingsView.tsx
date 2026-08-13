@@ -7,8 +7,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  MarkupSet, MARKUP_FIELDS, COMPANY_DEFAULTS, setCompanyDefault, CREW_TEMPLATES,
-  crewRate, money,
+  MarkupSet, MARKUP_FIELDS, COMPANY_DEFAULTS, setCompanyDefault,
+  money,
 } from '../../lib/costing';
 import {
   UserRole, ROLE_CFG, ROLE_ORDER, PERMISSIONS, PERMISSION_GROUPS, FIELD_USER_SUMMARY,
@@ -788,36 +788,6 @@ function MarkupTab() {
         </FieldRow>
       </SectionCard>
 
-      <SectionCard title="Crew templates">
-        <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
-          Crew mixes an estimator can apply in the Bid Builder's Labor section. Allocation must total 100%.
-        </div>
-        {CREW_TEMPLATES.map((t) => {
-          const total = t.rows.reduce((sum, r) => sum + r.allocation, 0);
-          return (
-            <div key={t.id} style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', flex: 1 }}>{t.name}</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: total === 100 ? '#16A34A' : '#DC2626', background: total === 100 ? '#F0FDF4' : '#FEF2F2', padding: '2px 7px', borderRadius: 9999 }}>
-                  {total}%
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {t.rows.map((r) => (
-                  <span
-                    key={r.role}
-                    /* The loaded rate is what the estimator compares; the build-up sits in the tooltip. */
-                    title={`Base $${r.baseRate}/hr + ${r.burdenPct}% burden${r.fringeDollars > 0 ? ` + $${r.fringeDollars} fringe @ ${r.fringePct}%` : ' · no fringe'}`}
-                    style={{ fontSize: 11, color: '#374151', background: '#F9FAFB', border: '1px solid #E5E7EB', padding: '2px 8px', borderRadius: 9999 }}
-                  >
-                    {r.role} {r.allocation}% · {money(crewRate({ ...r, id: r.role }).loadedRate)}/hr
-                  </span>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </SectionCard>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
         {dirty && <span style={{ fontSize: 12, color: '#D97706' }}>Unsaved changes</span>}

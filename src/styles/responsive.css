@@ -3,7 +3,7 @@
  *
  * The feature screens are authored with inline styles (the existing house style),
  * which cannot express media queries. These classes carry the breakpoint
- * behaviour only — all colour / spacing values come from the same design tokens
+ * behaviour only — all color / spacing values come from the same design tokens
  * used inline (see theme.css).
  *
  * Breakpoints
@@ -158,6 +158,46 @@
 }
 .bp-part-row:active {
   cursor: grabbing;
+}
+
+/*
+ * Parts Library table cells.
+ * -------------------------
+ * The editable cells are borderless so thirteen columns read as a table rather
+ * than a form; the affordance arrives on hover and focus instead. Applied by
+ * class because an inline style cannot carry :hover or :focus.
+ */
+.bp-cell-input:hover {
+  border-color: #E5E7EB !important;
+  background: #FCFCFD !important;
+}
+.bp-cell-input:focus {
+  border-color: #2563EB !important;
+  background: white !important;
+}
+.bp-cell-input::placeholder {
+  color: #D1D5DB;
+}
+
+/*
+ * The table scrolls both ways and says so. `.bp-scroll-x` hides its scrollbar,
+ * which is right for a chip strip and wrong here: three columns sit past the
+ * right edge of the Settings content column, and an invisible scrollbar makes
+ * them look absent rather than off-screen.
+ */
+.bp-parts-table {
+  scrollbar-width: thin;
+}
+.bp-parts-table::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+.bp-parts-table::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 5px;
+}
+.bp-parts-table::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 @media (max-width: 768px) {

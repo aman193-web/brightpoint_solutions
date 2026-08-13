@@ -1,5 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import {
+  CategoryGroup, useProjectBreakdown, selectableValues, sortedGroups,
+} from '../../lib/projectBreakdown';
+import {
+  Classification, PageDefault, classificationLabel, defaultClassification, labelOf,
+  sameClassification, suggestSystemValue, groupByType,
+  usePageDefaults, getPageDefault, setPageDefault, clearPageDefault, seedPageDefaults,
+  publishClassifiedTakeoff, ClassifiedTakeoff,
+} from '../../lib/takeoffClassification';
 import {
   Zap, Undo2, Redo2, Share2, HelpCircle, ChevronLeft, ChevronRight,
   MousePointer2, Hand, ZoomIn, ZoomOut, Maximize2, ArrowLeftRight,
@@ -8,10 +17,28 @@ import {
   Cloud, CloudOff, Check, X, AlertTriangle, Lock, Unlock,
   Loader2, Search, Package, Edit2, Plus, Minimize2, Crop,
   Filter, Square, Layers as LayersIcon, Tag, RefreshCw as Swap,
+  Info, RotateCcw, ListPlus, LayoutGrid,
 } from 'lucide-react';
 import { AssemblyPanel } from '../library/AssemblyPanel';
+import {
+  TakeoffRecord, useTakeoffRecords, totalsFor, addRecord, updateRecord,
+  reclassifyRecords, removeRecords, getRecords, seedManualRecords,
+  findOrCreateDigitalRecord, setDigitalMeasure, digitalRecordKey,
+} from '../../lib/takeoffRecords';
+import { TakeoffListPanel, DockMode } from './TakeoffListPanel';
+import { FloatingFrame, FloatRect, DockState, UndockButton, CollapsedRail } from './FloatingFrame';
+import { ManualTakeoffPanel } from './ManualTakeoffPanel';
+import {
+  ALL_ASSEMBLIES, MASTER_PARTS, categoryOf, defaultMeasureType,
+} from '../library/libraryData';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
+
+/** Two methods of creating takeoff for the same project. */
+export type TakeoffMode = 'manual' | 'digital';
+
+/** Left workspace panel tabs (§16). Takeoff moved to the bottom dock. */
+type LeftTab = 'pages' | 'assemblies' | 'items' | 'layers';
 
 type Tool =
   | 'select' | 'hand' | 'zoom-in' | 'zoom-out' | 'fit' | 'fit-width'
@@ -41,6 +68,18 @@ interface CountMarker {
   markerState: MarkerState;
   number: number;
   designator?: string;
+  /**
+   * Project Breakdown classification, as `{ groupId: valueId }`.
+   *
+   * Ids, so renaming "Floor 1" upstream leaves this attached. Inherited from the
+   * active classification when the marker is placed; `clsOverridden` records that
+   * the estimator set it by hand, which is what stops a page-default change from
+   * quietly rewriting a deliberate choice.
+   */
+  cls?: Classification;
+  clsOverridden?: boolean;
+  /** The page it was placed on — page defaults are per sheet. */
+  pageId?: string;
 }
 
 interface LinearPath {
@@ -50,6 +89,9 @@ interface LinearPath {
   color: string;
   totalLength: number;
   selected: boolean;
+  cls?: Classification;
+  clsOverridden?: boolean;
+  pageId?: string;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -57,16 +99,43 @@ interface LinearPath {
 interface Page {
   id: string; num: string; title: string; scale: string | null; discipline: string;
   excluded?: boolean; parentId?: string; isSubPage?: boolean;
+  /**
+   * The rendered sheet, served from `public/drawings`.
+   *
+   * These are the project's actual drawings, not a recreation: the two supplied
+   * PDFs converted to PNG at 3400×2428, which is enough resolution to zoom in on
+   * a receptacle symbol and still read the circuit tag. A page without one is a
+   * schedule or a diagram that has no plan to take off.
+   */
+  image?: string;
+  thumb?: string;
 }
 
+/**
+ * The sheet's coordinate space.
+ *
+ * Everything on the canvas — markers, paths, calibration — is positioned in this
+ * space, so it has to match the drawing's aspect or the plan is stretched and
+ * every measurement taken off it is wrong in one axis. Both supplied sheets are
+ * 3400×2428, so one constant covers them; a sheet of a different shape would need
+ * its own, which is why the height is derived rather than typed.
+ */
+const SHEET_ASPECT = 3400 / 2428;
+const SHEET_W = 1200;
+const SHEET_H = Math.round(SHEET_W / SHEET_ASPECT);   // 857
+
 const INITIAL_PAGES: Page[] = [
-  { id: 'e101', num: 'E-101', title: 'Electrical Plan Level 1', scale: '1:100', discipline: 'electrical' },
-  { id: 'e102', num: 'E-102', title: 'Electrical Plan Level 2', scale: '1:100', discipline: 'electrical' },
-  { id: 'e201', num: 'E-201', title: 'Lighting Plan Level 1', scale: null,    discipline: 'lighting' },
-  { id: 'e202', num: 'E-202', title: 'Lighting Plan Level 2', scale: '1:100', discipline: 'lighting' },
-  { id: 'e301', num: 'E-301', title: 'Power Plan',            scale: '1:100', discipline: 'power' },
-  { id: 'e401', num: 'E-401', title: 'Panel Schedule PA',     scale: 'NTS',  discipline: 'electrical' },
-  { id: 'e501', num: 'E-501', title: 'Single Line Diagram',   scale: 'NTS',  discipline: 'electrical' },
+  {
+    id: 'e1', num: 'E-1', title: 'Power Plan', scale: '1/8"=1\'-0"', discipline: 'power',
+    image: '/drawings/e1-power-plan.png', thumb: '/drawings/e1-power-plan-thumb.png',
+  },
+  {
+    id: 'e2', num: 'E-2', title: 'Lighting Plan', scale: '1/8"=1\'-0"', discipline: 'lighting',
+    image: '/drawings/e2-lighting-plan.png', thumb: '/drawings/e2-lighting-plan-thumb.png',
+  },
+  { id: 'e3', num: 'E-3', title: 'Electrical Riser',      scale: 'NTS', discipline: 'electrical' },
+  { id: 'em3', num: 'EM-3', title: 'Temperature Sensor Details', scale: 'NTS', discipline: 'electrical' },
+  { id: 'e401', num: 'E-401', title: 'Panel Schedule PA', scale: 'NTS', discipline: 'electrical' },
 ];
 
 const ARCH_SCALES = ['1:10','1:20','1:25','1:50','1:100','1:200','1:500','1/4"=1\'-0"','1/8"=1\'-0"','3/4"=1\'-0"','1"=1\'-0"','1 1/2"=1\'-0"','3"=1\'-0"'];
@@ -164,71 +233,127 @@ const AI_ITEMS = [
 
 // ─── Initial data ───────────────────────────────────────────────────────────────
 
+/**
+ * Where the sales floor sits on the supplied sheets.
+ *
+ * Both drawings put the plan in the lower-left quadrant, with legends, schedules
+ * and notes filling the rest of the sheet. Seeded takeoff is placed inside this
+ * box so it lands on the building rather than on a note block. Measured off the
+ * rendered sheets, in the `SHEET_W × SHEET_H` space everything else uses — the
+ * markers are placed *over the plan*, not snapped to surveyed symbol coordinates,
+ * which no amount of eyeballing a raster could honestly claim.
+ */
+const PLAN_AREA = { x: 205, y: 470, w: 555, h: 300 };
+
+/**
+ * Seeded takeoff, per sheet.
+ *
+ * Markers carry a `pageId` because they belong to a drawing: fixtures counted on
+ * the lighting plan must not appear on the power plan. Before the sheets were
+ * real this did not matter, since every page rendered the same synthetic plan.
+ */
 function buildInitialMarkers(): CountMarker[] {
   const out: CountMarker[] = [];
-  // Row 1 — confirmed (y=165, 12 fixtures)
-  for (let i = 0; i < 12; i++) {
-    out.push({
-      id: `m${i + 1}`,
-      x: 140 + i * 83,
-      y: 165,
-      assembly: '2×4 LED Troffer 40W',
-      assemblyId: 'asm-led-troffer',
-      discipline: 'lighting',
-      color: '#7C3AED',
-      markerState: 'default',
-      number: i + 1,
-    });
+
+  // ── E-2 Lighting Plan: troffers across the sales floor ──
+  const cols = 6;
+  const rows = 3;
+  let n = 1;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const last = r === rows - 1 && c >= cols - 2;
+      out.push({
+        id: `m-lt-${n}`,
+        x: PLAN_AREA.x + 45 + c * ((PLAN_AREA.w - 90) / (cols - 1)),
+        y: PLAN_AREA.y + 55 + r * ((PLAN_AREA.h - 130) / (rows - 1)),
+        assembly: '2×4 LED Troffer 40W',
+        assemblyId: 'asm-led-troffer',
+        discipline: 'lighting',
+        color: '#7C3AED',
+        // The last two stand in for what AI Count proposed and nobody has confirmed.
+        markerState: last ? 'ai-suggested' : 'default',
+        number: n,
+        pageId: 'e2',
+      });
+      n += 1;
+    }
   }
-  // Row 2 — confirmed first 8
+  out.push({ id: 'exit-1', x: PLAN_AREA.x + 20, y: PLAN_AREA.y + PLAN_AREA.h - 40, assembly: 'Emergency Exit Combo', assemblyId: 'asm-exit-combo', discipline: 'lighting', color: '#DC2626', markerState: 'default', number: 1, pageId: 'e2' });
+  out.push({ id: 'exit-2', x: PLAN_AREA.x + PLAN_AREA.w - 20, y: PLAN_AREA.y + PLAN_AREA.h - 40, assembly: 'Emergency Exit Combo', assemblyId: 'asm-exit-combo', discipline: 'lighting', color: '#DC2626', markerState: 'default', number: 2, pageId: 'e2' });
+
+  // ── E-1 Power Plan: receptacles around the perimeter ──
   for (let i = 0; i < 8; i++) {
     out.push({
-      id: `m${13 + i}`,
-      x: 140 + i * 83,
-      y: 300,
-      assembly: '2×4 LED Troffer 40W',
-      assemblyId: 'asm-led-troffer',
-      discipline: 'lighting',
-      color: '#7C3AED',
+      id: `m-rc-${i + 1}`,
+      x: PLAN_AREA.x + 30 + i * ((PLAN_AREA.w - 60) / 7),
+      y: PLAN_AREA.y + PLAN_AREA.h - 22,
+      assembly: 'Duplex Receptacle 20A',
+      assemblyId: 'asm-duplex-20a',
+      discipline: 'power',
+      color: '#2563EB',
       markerState: 'default',
-      number: 13 + i,
+      number: i + 1,
+      pageId: 'e1',
     });
   }
-  // Row 2 — AI-suggested last 4
-  for (let i = 0; i < 4; i++) {
-    out.push({
-      id: `m${21 + i}`,
-      x: 140 + (8 + i) * 83,
-      y: 300,
-      assembly: '2×4 LED Troffer 40W',
-      assemblyId: 'asm-led-troffer',
-      discipline: 'lighting',
-      color: '#7C3AED',
-      markerState: 'ai-suggested',
-      number: 21 + i,
-    });
-  }
-  // Emergency exits
-  out.push({ id: 'exit-1', x: 140, y: 440, assembly: 'Emergency Exit Combo', assemblyId: 'asm-exit', discipline: 'lighting', color: '#DC2626', markerState: 'default', number: 1 });
-  out.push({ id: 'exit-2', x: 1050, y: 440, assembly: 'Emergency Exit Combo', assemblyId: 'asm-exit', discipline: 'lighting', color: '#DC2626', markerState: 'default', number: 2 });
-  // Missing-assembly marker
-  out.push({ id: 'missing-1', x: 300, y: 500, assembly: '', assemblyId: '', discipline: 'power', color: '#9CA3AF', markerState: 'missing-assembly', number: 1 });
+  // A count placed before its assembly was decided — the state the inspector exists for.
+  out.push({ id: 'missing-1', x: PLAN_AREA.x + 60, y: PLAN_AREA.y + 40, assembly: '', assemblyId: '', discipline: 'power', color: '#9CA3AF', markerState: 'missing-assembly', number: 1, pageId: 'e1' });
   return out;
 }
 
 const INITIAL_PATHS: LinearPath[] = [
   {
     id: 'lp1',
-    points: [{ x: 160, y: 550 }, { x: 1050, y: 550 }],
+    points: [
+      { x: PLAN_AREA.x + 25, y: PLAN_AREA.y + 25 },
+      { x: PLAN_AREA.x + PLAN_AREA.w - 40, y: PLAN_AREA.y + 25 },
+    ],
     assembly: '3/4" EMT Conduit',
     color: '#D97706',
-    totalLength: 27.3,
+    totalLength: 68.5,
     selected: false,
+    pageId: 'e1',
   },
 ];
 
 // ─── Floor plan SVG ─────────────────────────────────────────────────────────────
 
+/**
+ * The sheet itself.
+ *
+ * The real drawing where the project has one, and an honest placeholder where it
+ * does not — a schedule page says so rather than showing a plan it is not. The
+ * image is `pointerEvents: none` so a click on the sheet reaches the SVG's own
+ * handler and places a marker; without that, the drawing swallows every count.
+ */
+function SheetImage({ page }: { page: Page }) {
+  if (!page.image) {
+    return (
+      <g>
+        <rect x={0} y={0} width={SHEET_W} height={SHEET_H} fill="white" stroke="#D1D5DB" strokeWidth={1} />
+        <text x={SHEET_W / 2} y={SHEET_H / 2 - 8} fontSize={15} fill="#9CA3AF" textAnchor="middle" fontFamily="sans-serif">
+          {page.num} — {page.title}
+        </text>
+        <text x={SHEET_W / 2} y={SHEET_H / 2 + 14} fontSize={11} fill="#C7CBD1" textAnchor="middle" fontFamily="sans-serif">
+          {page.scale === 'NTS' ? 'Not to scale — nothing to take off on this sheet' : 'No drawing uploaded for this sheet'}
+        </text>
+      </g>
+    );
+  }
+  return (
+    <image
+      href={page.image}
+      x={0}
+      y={0}
+      width={SHEET_W}
+      height={SHEET_H}
+      pointerEvents="none"
+      style={{ imageRendering: 'auto' }}
+    />
+  );
+}
+
+/** Retained for the page-preview thumbnail, which draws a schematic, not a sheet. */
 function FloorPlan() {
   return (
     <g>
@@ -418,8 +543,374 @@ function LinearInProgressEl({ points, mousePos }: { points: { x: number; y: numb
 
 // ─── Workspace top bar ──────────────────────────────────────────────────────────
 
+/**
+ * The active takeoff classification.
+ *
+ * One compact strip below the toolbar, not a panel — every new takeoff inherits
+ * what is set here, so it has to be visible while drawing without taking canvas.
+ * The values come from Project Breakdown; nothing in Takeoff hard-codes them, so
+ * a group added there appears here without another change.
+ */
+function ClassificationBar({
+  groups, cls, onChange, page, pageDefault, onUseAsPageDefault, onManageDefaults, suggestion, onAcceptSuggestion,
+}: {
+  groups: CategoryGroup[];
+  cls: Classification;
+  onChange: (next: Classification) => void;
+  page: Page | undefined;
+  pageDefault: PageDefault | null;
+  onUseAsPageDefault: () => void;
+  onManageDefaults: () => void;
+  /** System the active assembly implies, when the estimator has not chosen one. */
+  suggestion: { name: string; valueId: string; groupId: string } | null;
+  onAcceptSuggestion: () => void;
+}) {
+  const ordered = sortedGroups(groups);
+  const matchesPage = !!pageDefault && sameClassification(cls, pageDefault.cls);
+
+  return (
+    <div
+      className="bp-cls-bar bp-scroll-x"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px',
+        background: '#FAFBFF', borderBottom: '1px solid #E5E7EB', flexShrink: 0,
+        overflowX: 'auto', zIndex: 9,
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+        <LayersIcon size={12} color="#6B7280" />
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          New takeoffs
+        </span>
+      </span>
+
+      {ordered.map((g) => {
+        const values = selectableValues(g);
+        const current = cls[g.id] ?? '';
+        /*
+         * An inactive value already on this classification is still listed, and
+         * marked — otherwise the select would silently jump to another value and
+         * reclassify the next takeoff without anyone asking for it.
+         */
+        const currentValue = g.values.find((v) => v.id === current);
+        const showInactive = currentValue && !currentValue.active;
+        return (
+          <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+            <span style={{ fontSize: 10, color: '#9CA3AF', whiteSpace: 'nowrap' }}>{g.name}</span>
+            <select
+              value={current}
+              onChange={(e) => onChange({ ...cls, [g.id]: e.target.value })}
+              aria-label={`Active ${g.name}`}
+              style={{
+                height: 26, padding: '0 6px', border: `1px solid ${showInactive ? '#FDE68A' : '#E5E7EB'}`,
+                borderRadius: 6, fontSize: 11, background: 'white', outline: 'none',
+                color: '#374151', maxWidth: 168,
+              }}
+            >
+              {showInactive && <option value={currentValue!.id}>{currentValue!.name} (inactive)</option>}
+              {values.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+          </label>
+        );
+      })}
+
+      {/*
+        The suggestion is offered, never applied. An estimator who has picked a
+        System deliberately should not have it overwritten by an assembly choice.
+      */}
+      {suggestion && (
+        <button
+          onClick={onAcceptSuggestion}
+          title={`This assembly looks like ${suggestion.name} work`}
+          style={{ height: 24, padding: '0 8px', border: '1px solid #DDD6FE', borderRadius: 6, background: '#F5F3FF', fontSize: 10, fontWeight: 600, color: '#6D28D9', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
+        >
+          <Sparkles size={10} /> Use {suggestion.name}
+        </button>
+      )}
+
+      <span style={{ flex: 1, minWidth: 8 }} />
+
+      {page && (
+        <>
+          {pageDefault?.set && matchesPage ? (
+            <span
+              title={`New takeoffs on ${page.num} inherit these values.`}
+              style={{ fontSize: 10, color: '#16A34A', background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0 }}
+            >
+              {page.num} default
+            </span>
+          ) : (
+            <button
+              onClick={onUseAsPageDefault}
+              title={`New takeoffs on ${page.num} will inherit this classification`}
+              style={{ height: 24, padding: '0 8px', border: '1px solid #BFDBFE', borderRadius: 6, background: 'white', fontSize: 10, fontWeight: 600, color: '#1D4ED8', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+            >
+              Use as page default
+            </button>
+          )}
+          <button
+            onClick={onManageDefaults}
+            style={{ height: 24, padding: '0 8px', border: '1px solid #E5E7EB', borderRadius: 6, background: 'white', fontSize: 10, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            Manage Defaults
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The one-line reminder of what this sheet hands to new work.
+ *
+ * Shown whenever a default exists, confirmed or not — because either way it is
+ * what the next takeoff will inherit, and the estimator needs to know that before
+ * they start counting, not after. The wording distinguishes the two: a seeded
+ * default reads as read from the sheet, a confirmed one as set.
+ */
+function PageDefaultNote({ groups, pageDefault, page }: {
+  groups: CategoryGroup[];
+  pageDefault: PageDefault | null;
+  page: Page | undefined;
+}) {
+  if (!pageDefault || !page) return null;
+  const pkg = labelOf(groups, pageDefault.cls, 'bid-package');
+  const area = labelOf(groups, pageDefault.cls, 'area');
+  const sys = labelOf(groups, pageDefault.cls, 'system');
+  const confirmed = pageDefault.set;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: confirmed ? '#EFF6FF' : '#FAFBFF', borderBottom: `1px solid ${confirmed ? '#BFDBFE' : '#E5E7EB'}`, flexShrink: 0 }}>
+      <Info size={11} color={confirmed ? '#2563EB' : '#9CA3AF'} style={{ flexShrink: 0 }} />
+      <span style={{ fontSize: 10.5, color: confirmed ? '#1E40AF' : '#6B7280' }}>
+        {page.num} defaults to <strong>{pkg}</strong> · <strong>{area}</strong> · <strong>{sys}</strong>.
+        New takeoffs will inherit these values.
+        {!confirmed && (
+          <span style={{ color: '#9CA3AF' }}> Read from the sheet — confirm it with Use as page default.</span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Manage Defaults — every page's default classification in one table.
+ *
+ * Per-page rather than global because a drawing set is organised by sheet, and
+ * setting them one at a time from the canvas is the tedium this removes.
+ */
+function ManageDefaultsModal({ groups, pages, defaults, onSet, onClear, onClose }: {
+  groups: CategoryGroup[];
+  pages: Page[];
+  defaults: Record<string, PageDefault>;
+  onSet: (pageId: string, cls: Classification) => void;
+  onClear: (pageId: string) => void;
+  onClose: () => void;
+}) {
+  const ordered = sortedGroups(groups);
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(17,24,39,0.4)' }} />
+      <div
+        role="dialog"
+        aria-label="Manage page defaults"
+        style={{
+          position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 91,
+          width: 'min(880px, calc(100vw - 48px))', maxHeight: 'calc(100vh - 80px)',
+          background: 'white', border: '1px solid #E5E7EB', borderRadius: 12,
+          boxShadow: '0 20px 50px rgba(17,24,39,0.24)', display: 'flex', flexDirection: 'column',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '14px 16px', borderBottom: '1px solid #F3F4F6', flexShrink: 0 }}>
+          <LayersIcon size={15} color="#2563EB" />
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827', flex: 1 }}>Page Defaults</span>
+          <button onClick={onClose} aria-label="Close" style={{ width: 26, height: 26, border: '1px solid #E5E7EB', borderRadius: 7, background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={13} color="#6B7280" />
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `210px repeat(${ordered.length}, 1fr) 78px`, gap: 8, padding: '7px 16px', background: '#FAFAFA', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Page</span>
+            {ordered.map((g) => (
+              <span key={g.id} style={{ fontSize: 9, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{g.name}</span>
+            ))}
+            <span />
+          </div>
+
+          {pages.filter((p) => !p.excluded).map((p) => {
+            const pd = defaults[p.id];
+            const cls = pd?.cls ?? {};
+            return (
+              <div key={p.id} style={{ display: 'grid', gridTemplateColumns: `210px repeat(${ordered.length}, 1fr) 78px`, gap: 8, alignItems: 'center', padding: '7px 16px', borderBottom: '1px solid #F3F4F6' }}>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#111827', fontFamily: 'IBM Plex Mono, monospace' }}>{p.num}</span>
+                  <span style={{ display: 'block', fontSize: 10, color: '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</span>
+                </span>
+                {ordered.map((g) => (
+                  <select
+                    key={g.id}
+                    value={cls[g.id] ?? ''}
+                    onChange={(e) => onSet(p.id, { ...cls, [g.id]: e.target.value })}
+                    aria-label={`${p.num} ${g.name}`}
+                    style={{ height: 26, padding: '0 5px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 10.5, background: 'white', outline: 'none', color: '#374151', minWidth: 0 }}
+                  >
+                    <option value="">—</option>
+                    {selectableValues(g).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                ))}
+                {pd?.set ? (
+                  <button
+                    onClick={() => onClear(p.id)}
+                    style={{ height: 24, border: '1px solid #E5E7EB', borderRadius: 6, background: 'white', fontSize: 10, color: '#374151', cursor: 'pointer' }}
+                  >
+                    Clear
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 10, color: '#D1D5DB', textAlign: 'center' }}>suggested</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px', borderTop: '1px solid #F3F4F6', background: '#FAFAFA', flexShrink: 0 }}>
+          <span style={{ fontSize: 10.5, color: '#6B7280', flex: 1 }}>
+            Rows marked <em>suggested</em> were read from the sheet title and are not yet a decision.
+            Changing a page default never reclassifies takeoffs already on it.
+          </span>
+          <button onClick={onClose} style={{ height: 30, padding: '0 14px', border: 'none', borderRadius: 8, background: '#2563EB', fontSize: 12, fontWeight: 600, color: 'white', cursor: 'pointer' }}>
+            Done
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Bulk reassignment for a multi-selection.
+ *
+ * Only the dimensions the estimator actually sets are written — an untouched
+ * group is left alone on every selected takeoff, so reassigning Area across a
+ * mixed selection does not flatten their Systems as a side effect.
+ */
+function BulkClassifyBar({ groups, count, onApply, onClear }: {
+  groups: CategoryGroup[];
+  count: number;
+  onApply: (patch: Classification) => void;
+  onClear: () => void;
+}) {
+  const [patch, setPatch] = useState<Classification>({});
+  const ordered = sortedGroups(groups);
+  const chosen = Object.keys(patch).length;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', background: '#EFF6FF', borderBottom: '1px solid #BFDBFE', flexShrink: 0, flexWrap: 'wrap' }}>
+      {/*
+        Says "markers", not "takeoffs".
+        ----------------------------
+        This bar reclassifies the selected *geometry*; the Takeoff List's own bulk
+        bar reclassifies whole *records*. Both are useful — moving four of a
+        record's markers to Floor 2 legitimately splits the record — but they were
+        worded identically, which made two bars look like one bar duplicated.
+      */}
+      <span
+        title="Reclassifies these markers only. Moving some of a record's markers splits it into two records."
+        style={{ fontSize: 11, fontWeight: 600, color: '#1E40AF', whiteSpace: 'nowrap' }}
+      >
+        {count} marker{count === 1 ? '' : 's'} selected on the drawing
+      </span>
+      {ordered.map((g) => (
+        <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ fontSize: 10, color: '#1E40AF', whiteSpace: 'nowrap' }}>{g.name}</span>
+          <select
+            value={patch[g.id] ?? ''}
+            onChange={(e) => setPatch((p) => {
+              const next = { ...p };
+              if (e.target.value) next[g.id] = e.target.value; else delete next[g.id];
+              return next;
+            })}
+            aria-label={`Bulk ${g.name}`}
+            style={{ height: 26, padding: '0 6px', border: '1px solid #BFDBFE', borderRadius: 6, fontSize: 11, background: 'white', outline: 'none', color: '#374151', maxWidth: 160 }}
+          >
+            <option value="">Leave as is</option>
+            {selectableValues(g).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        </label>
+      ))}
+      <span style={{ flex: 1, minWidth: 8 }} />
+      <button
+        onClick={onClear}
+        style={{ height: 26, padding: '0 10px', border: '1px solid #BFDBFE', borderRadius: 6, background: 'white', fontSize: 11, color: '#374151', cursor: 'pointer' }}
+      >
+        Cancel
+      </button>
+      <button
+        disabled={chosen === 0}
+        onClick={() => { onApply(patch); setPatch({}); }}
+        style={{
+          height: 26, padding: '0 12px', border: 'none', borderRadius: 6,
+          background: chosen ? '#2563EB' : '#BFDBFE',
+          fontSize: 11, fontWeight: 600, color: chosen ? 'white' : '#E0ECFF',
+          cursor: chosen ? 'pointer' : 'default', whiteSpace: 'nowrap',
+        }}
+      >
+        Apply to selected takeoffs
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Manual | Digital.
+ *
+ * Two methods of creating takeoff for the same project, not two estimates. The
+ * switch sits in the workspace's own top bar rather than inside either mode,
+ * because it changes *how you are working*, not what you are working on — and
+ * nothing about the project's records changes when it moves.
+ */
+function ModeSwitch({ mode, onChange, counts }: {
+  mode: TakeoffMode;
+  onChange: (m: TakeoffMode) => void;
+  counts: { manual: number; digital: number };
+}) {
+  return (
+    <div style={{ display: 'flex', border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', flexShrink: 0, marginLeft: 14 }}>
+      {([
+        ['manual', 'Manual Takeoff', 'Pick from the library and enter quantities — no drawing needed', counts.manual],
+        ['digital', 'Digital Takeoff', 'Count and measure on the drawings', counts.digital],
+      ] as [TakeoffMode, string, string, number][]).map(([m, label, hint, n]) => (
+        <button
+          key={m}
+          onClick={() => onChange(m)}
+          title={hint}
+          aria-pressed={mode === m}
+          style={{
+            height: 32, padding: '0 12px', border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+            background: mode === m ? '#2563EB' : 'white',
+            color: mode === m ? 'white' : '#6B7280',
+            fontSize: 12, fontWeight: mode === m ? 600 : 400,
+          }}
+        >
+          {m === 'manual' ? <ListPlus size={13} /> : <LayoutGrid size={13} />}
+          {label}
+          {/* The count is the reassurance that switching lost nothing. */}
+          <span style={{
+            fontSize: 10, fontWeight: 600, padding: '0 5px', borderRadius: 999, minWidth: 16,
+            background: mode === m ? 'rgba(255,255,255,0.22)' : '#F3F4F6',
+            color: mode === m ? 'white' : '#9CA3AF',
+          }}>
+            {n}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function WorkspaceTopBar({
-  autosaveState, demoState, onUndo, onRedo, onHelp, onExit,
+  autosaveState, demoState, onUndo, onRedo, onHelp, onExit, sheetLabel, modeSwitch,
 }: {
   autosaveState: 'saved' | 'saving' | 'failed';
   demoState: WorkspaceDemo;
@@ -427,6 +918,8 @@ function WorkspaceTopBar({
   onRedo: () => void;
   onHelp: () => void;
   onExit: () => void;
+  sheetLabel: string;
+  modeSwitch: React.ReactNode;
 }) {
   const isOffline = demoState === 'offline';
   return (
@@ -446,13 +939,15 @@ function WorkspaceTopBar({
         <span style={{ color: '#9CA3AF' }}>/</span>
         <span>Electrical Estimate</span>
         <span style={{ color: '#9CA3AF' }}>/</span>
-        <span style={{ color: '#111827', fontWeight: 500 }}>Sheet E-101</span>
+        <span style={{ color: '#111827', fontWeight: 500 }}>{sheetLabel}</span>
       </div>
 
       {/* Estimate status */}
       <div style={{ marginLeft: 12, padding: '2px 8px', borderRadius: 4, backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 11, color: '#92400E', fontWeight: 500, flexShrink: 0 }}>
         In progress
       </div>
+
+      {modeSwitch}
 
       <div style={{ flex: 1 }} />
 
@@ -498,7 +993,7 @@ const TOOL_GROUPS: { tools: { id: Tool; icon: React.ElementType; label: string; 
   { tools: [{ id: 'count', icon: Palette, label: 'Color' } as any, { id: 'count', icon: SlidersHorizontal, label: 'Line weight' } as any] },
 ];
 
-function TakeoffToolbar({ activeTool, onToolChange, snapEnabled, onSnapToggle, onAICount, showSymbols, onToggleSymbols, dimBackground, onToggleDim }: {
+function TakeoffToolbar({ activeTool, onToolChange, snapEnabled, onSnapToggle, onAICount, showSymbols, onToggleSymbols, dimBackground, onToggleDim, onUndock, floating }: {
   activeTool: Tool;
   onToolChange: (t: Tool) => void;
   snapEnabled: boolean;
@@ -508,9 +1003,14 @@ function TakeoffToolbar({ activeTool, onToolChange, snapEnabled, onSnapToggle, o
   onToggleSymbols: () => void;
   dimBackground: boolean;
   onToggleDim: () => void;
+  /** Absent while floating — the frame carries the dock controls instead. */
+  onUndock?: () => void;
+  /** Floating drops the bottom border and lets the tools wrap in a narrow frame. */
+  floating?: boolean;
 }) {
   return (
-    <div style={{ height: 46, backgroundColor: 'white', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', padding: '0 10px', gap: 0, flexShrink: 0, overflowX: 'auto' }}>
+    <div style={{ minHeight: 46, backgroundColor: 'white', borderBottom: floating ? 'none' : '1px solid #E5E7EB', display: 'flex', alignItems: 'center', padding: '0 10px', gap: 0, flexShrink: 0, overflowX: floating ? 'hidden' : 'auto', flexWrap: floating ? 'wrap' : 'nowrap' }}>
+      {onUndock && <UndockButton onUndock={onUndock} label="Tools" />}
       {TOOL_GROUPS.map((group, gi) => (
         <div key={gi} style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {gi > 0 && <div style={{ width: 1, height: 22, backgroundColor: '#E5E7EB', margin: '0 6px', flexShrink: 0 }} />}
@@ -599,6 +1099,25 @@ const toolBtn = {
 
 // ─── Assemblies + Parts tab data ──────────────────────────────────────────────────────
 
+/**
+ * How an assembly category reads on the drawing.
+ *
+ * Colour carries meaning on a takeoff — an estimator scanning a sheet tells
+ * lighting from power by hue before reading a label — so a placed marker takes the
+ * colour of what it is, not of whatever was hardcoded.
+ */
+const DISC_FOR_CAT: Record<string, string> = {
+  Fixtures: 'lighting', Devices: 'power', Raceway: 'power',
+  Feeders: 'power', 'Fire Alarm': 'fire-alarm', 'Low Voltage': 'data',
+};
+const COLOR_FOR_CAT: Record<string, string> = {
+  Fixtures: '#7C3AED', Devices: '#2563EB', Raceway: '#D97706',
+  Feeders: '#0891B2', 'Fire Alarm': '#DC2626', 'Low Voltage': '#059669',
+};
+
+/** A row in the Digital Takeoff assemblies list. */
+export type SidebarAssembly = typeof SIDEBAR_ASSEMBLIES[number];
+
 const SIDEBAR_ASSEMBLIES = [
   { id: 'sa-1', name: 'LED Troffer 2×4',             code: 'BPA-FX-201', cat: 'Fixtures',   source: 'System',  tool: 'Count',  status: 'recommended', fav: true,  locked: true  },
   { id: 'sa-2', name: 'LED Troffer 2×2',             code: 'BPA-FX-202', cat: 'Fixtures',   source: 'System',  tool: 'Count',  status: 'compatible',  fav: false, locked: true  },
@@ -655,7 +1174,17 @@ function PartsTabContent() {
       </div>
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {filtered.map(item => (
-          <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderBottom: '1px solid #F3F4F6', cursor: 'pointer' }}
+          <div
+            key={item.id}
+            draggable
+            onDragStart={(e) => {
+              /* A part dragged in becomes a direct part record, not an assembly (§14). */
+              e.dataTransfer.effectAllowed = 'copy';
+              e.dataTransfer.setData('application/x-bp-part', item.id);
+              e.dataTransfer.setData('text/plain', item.name);
+            }}
+            title="Drag onto the Takeoff List"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderBottom: '1px solid #F3F4F6', cursor: 'grab' }}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#F9FAFB'; }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -676,8 +1205,21 @@ function PartsTabContent() {
   );
 }
 
-function AssembliesTabContent({ onNavigateToLibrary }: { onNavigateToLibrary?: () => void }) {
-  const [activeAsm, setActiveAsm]       = useState(SIDEBAR_ASSEMBLIES[0]);
+/**
+ * The assemblies list inside Digital Takeoff.
+ *
+ * `activeAsm` is the workspace's, not this tab's: what the estimator is counting
+ * has to be known by the canvas that places it and by the toolbar that arms the
+ * tool for it. While it lived here, every count placed the same hardcoded fixture
+ * no matter which assembly was highlighted.
+ */
+function AssembliesTabContent({ onNavigateToLibrary, activeAsm, setActiveAsm, onArmTool }: {
+  onNavigateToLibrary?: () => void;
+  activeAsm: SidebarAssembly;
+  setActiveAsm: (a: SidebarAssembly) => void;
+  /** Arms Count or Linear for the activated assembly (§19). */
+  onArmTool: (tool: 'Count' | 'Linear') => void;
+}) {
   const [search, setSearch]             = useState('');
   const [filter, setFilter]             = useState('All');
   const [menuId, setMenuId]             = useState<string | null>(null);
@@ -718,7 +1260,13 @@ function AssembliesTabContent({ onNavigateToLibrary }: { onNavigateToLibrary?: (
 
   function doActivate(asm: typeof SIDEBAR_ASSEMBLIES[0]) {
     setActiveAsm(asm);
-    toast.success(`${asm.name} activated`, { description: `${asm.tool} tool active · Drawing context preserved.` });
+    /*
+     * The assembly's own measurement type arms the tool — a fixture goes to Count,
+     * a conduit run to Linear — so activating and then reaching for the right tool
+     * is one action instead of two. Still overridable from the toolbar.
+     */
+    onArmTool(asm.tool as 'Count' | 'Linear');
+    toast.success(`${asm.name} activated`, { description: `${asm.tool} tool armed · Drawing context preserved.` });
   }
 
   const statusColor = (s: string) => s === 'recommended' ? '#16A34A' : '#1D4ED8';
@@ -935,7 +1483,21 @@ function AssemblyRow({ asm, isActive, onActivate, onPreviewBOM, onReplace, menuI
   statusLabel: (s: string) => string;
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderBottom: '1px solid #F9FAFB', background: isActive ? '#EFF6FF' : 'white', borderLeft: `2px solid ${isActive ? '#2563EB' : 'transparent'}` }}>
+    /*
+      Draggable into the Takeoff List (§14). The payload is the assembly id on a
+      Brightpoint-specific MIME type, so the list's drop target can tell an
+      assembly from a part without inspecting the string.
+    */
+    <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'copy';
+        e.dataTransfer.setData('application/x-bp-assembly', asm.id);
+        e.dataTransfer.setData('text/plain', asm.name);
+      }}
+      title="Drag onto the Takeoff List, or click to activate"
+      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderBottom: '1px solid #F9FAFB', background: isActive ? '#EFF6FF' : 'white', borderLeft: `2px solid ${isActive ? '#2563EB' : 'transparent'}`, cursor: 'grab' }}
+    >
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, fontWeight: isActive ? 600 : 400, color: isActive ? '#1D4ED8' : '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}>{asm.name}</span>
@@ -1027,11 +1589,13 @@ function PagePreviewModal({ page, onClose }: { page: Page; onClose: () => void }
 function LeftPanel({
   collapsed, onToggle, tab, onTabChange, activePage, onPageChange,
   pages, onRenameSheet, onAddDrawings, onReenableSheet, onCreateSubPage, markers,
+  groups, clsFilter, onClsFilter, groupBy, onGroupBy,
+  activeAsm, setActiveAsm, onArmTool, onUndock,
 }: {
   collapsed: boolean;
   onToggle: () => void;
-  tab: 'pages' | 'takeoff' | 'layers' | 'assemblies' | 'items';
-  onTabChange: (t: 'pages' | 'takeoff' | 'layers' | 'assemblies' | 'items') => void;
+  tab: LeftTab;
+  onTabChange: (t: LeftTab) => void;
   activePage: number;
   onPageChange: (i: number) => void;
   pages: Page[];
@@ -1040,6 +1604,19 @@ function LeftPanel({
   onReenableSheet: (id: string) => void;
   onCreateSubPage: (parentId: string) => void;
   markers: CountMarker[];
+  groups: CategoryGroup[];
+  /** groupId → valueId. Empty means no filter on that dimension. */
+  clsFilter: Classification;
+  onClsFilter: (next: Classification) => void;
+  /** Grouping key: a category group id, or 'discipline' for the original behaviour. */
+  groupBy: string;
+  onGroupBy: (key: string) => void;
+  /** What the estimator is counting — owned by the workspace, used by the canvas. */
+  activeAsm: SidebarAssembly;
+  setActiveAsm: (a: SidebarAssembly) => void;
+  onArmTool: (tool: 'Count' | 'Linear') => void;
+  /** Float this panel. Absent when it is already floating. */
+  onUndock?: () => void;
 }) {
   const [layerVis, setLayerVis] = useState({ drawing: true, markup: true, count: true, linear: true, ai: true, notes: false });
   const [layerLock, setLayerLock] = useState({ drawing: false, markup: false, count: false, linear: false, ai: false, notes: false });
@@ -1057,11 +1634,12 @@ function LeftPanel({
     <div style={{ width: collapsed ? 0 : 280, minWidth: collapsed ? 0 : 280, borderRight: '1px solid #E5E7EB', backgroundColor: 'white', display: 'flex', flexDirection: 'column', overflow: 'hidden', transition: 'width 200ms ease, min-width 200ms ease', position: 'relative', flexShrink: 0 }}>
       {!collapsed && (
         <>
-          {/* Tab strip */}
-          <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
-            {(['pages', 'takeoff', 'layers', 'assemblies', 'items'] as const).map(t => (
-              <button key={t} onClick={() => onTabChange(t)} style={{ flex: 1, height: 38, border: 'none', backgroundColor: 'transparent', cursor: 'pointer', fontSize: t === 'assemblies' || t === 'items' ? 10 : 11, fontWeight: tab === t ? 600 : 400, color: tab === t ? '#2563EB' : '#6B7280', borderBottom: tab === t ? '2px solid #2563EB' : '2px solid transparent', textTransform: 'capitalize' }}>
-                {t === 'pages' ? 'Pages' : t === 'takeoff' ? 'Takeoff' : t === 'layers' ? 'Layers' : t === 'assemblies' ? 'Assemblies' : 'Parts'}
+          {/* Tab strip. The undock handle sits with the tabs, not over the content. */}
+          <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
+            {onUndock && <span style={{ paddingLeft: 4 }}><UndockButton onUndock={onUndock} label="Workspace panel" /></span>}
+            {(['pages', 'assemblies', 'items', 'layers'] as const).map(t => (
+              <button key={t} onClick={() => onTabChange(t)} style={{ flex: 1, height: 38, border: 'none', backgroundColor: 'transparent', cursor: 'pointer', fontSize: t === 'assemblies' ? 10.5 : 11, fontWeight: tab === t ? 600 : 400, color: tab === t ? '#2563EB' : '#6B7280', borderBottom: tab === t ? '2px solid #2563EB' : '2px solid transparent', textTransform: 'capitalize' }}>
+                {t === 'pages' ? 'Pages' : t === 'layers' ? 'Layers' : t === 'assemblies' ? 'Assemblies' : 'Parts'}
               </button>
             ))}
           </div>
@@ -1167,65 +1745,13 @@ function LeftPanel({
             </div>
           )}
 
-          {/* Takeoff tab */}
-          {tab === 'takeoff' && (() => {
-            // Compute tally by assembly from live markers
-            const tallyMap: Record<string, { name: string; color: string; discipline: string; confirmed: number; ai: number; missing: boolean }> = {};
-            markers.forEach(m => {
-              const key = m.assemblyId || m.id;
-              if (!tallyMap[key]) tallyMap[key] = { name: m.assembly || 'Unassigned', color: m.color, discipline: m.discipline, confirmed: 0, ai: 0, missing: !m.assembly };
-              if (m.markerState === 'ai-suggested') tallyMap[key].ai += 1;
-              else if (m.markerState !== 'excluded') tallyMap[key].confirmed += 1;
-            });
-            const byDisc: Record<string, typeof tallyMap[string][]> = {};
-            Object.values(tallyMap).forEach(entry => {
-              if (!byDisc[entry.discipline]) byDisc[entry.discipline] = [];
-              byDisc[entry.discipline].push(entry);
-            });
-            return (
-              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ padding: '8px 10px', borderBottom: '1px solid #F3F4F6', flexShrink: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, height: 28, padding: '0 8px', border: '1px solid #E5E7EB', borderRadius: 5, backgroundColor: '#F9FAFB' }}>
-                    <Search size={11} color="#9CA3AF" />
-                    <input placeholder="Search assemblies…" style={{ flex: 1, border: 'none', background: 'none', fontSize: 11, color: '#374151', outline: 'none' }} />
-                  </div>
-                </div>
-                {Object.entries(byDisc).map(([disc, entries]) => (
-                  <div key={disc}>
-                    <div style={{ padding: '6px 10px 3px', fontSize: 10, fontWeight: 600, color: '#9CA3AF', letterSpacing: 0.5, textTransform: 'uppercase', borderBottom: '1px solid #F3F4F6' }}>{disc}</div>
-                    {entries.map(entry => (
-                      <div key={entry.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderBottom: '1px solid #F3F4F6', cursor: 'pointer' }}>
-                        {entry.missing
-                          ? <AlertTriangle size={8} color="#D97706" />
-                          : <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: entry.color, flexShrink: 0 }} />}
-                        <span style={{ flex: 1, fontSize: 11, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.name}</span>
-                        {entry.missing
-                          ? <span style={{ fontSize: 10, color: '#D97706' }}>No assembly</span>
-                          : (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: '#374151', backgroundColor: '#F3F4F6', padding: '1px 6px', borderRadius: 10 }}>{entry.confirmed}</span>
-                              {entry.ai > 0 && <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#A855F7', backgroundColor: '#F5F3FF', padding: '1px 5px', borderRadius: 10 }}>+{entry.ai} AI</span>}
-                            </div>
-                          )}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-                {/* Legend */}
-                <div style={{ padding: '10px 10px 6px', marginTop: 'auto', borderTop: '1px solid #F3F4F6', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ fontSize: 9, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Legend</div>
-                  {[{ color: '#7C3AED', label: 'Lighting takeoff' }, { color: '#DC2626', label: 'Emergency' }, { color: '#D97706', label: 'Conduit / power' }, { color: '#9CA3AF', label: 'Unassigned' }].map(l => (
-                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#6B7280' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: l.color, flexShrink: 0 }} />
-                      {l.label}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Layers tab */}
+          {/*
+            The Takeoff tab that used to live here is gone: the Takeoff List is
+            docked along the bottom of the workspace now, where it has the width for
+            real columns. Its filters and grouping went with it — a 240px rail could
+            only offer them as controls, and duplicating them in two places would
+            leave two answers to "what is showing".
+          */}
           {tab === 'layers' && (
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {(Object.keys(layerVis) as (keyof typeof layerVis)[]).map(key => {
@@ -1248,7 +1774,13 @@ function LeftPanel({
           )}
 
           {/* Assemblies tab */}
-          {tab === 'assemblies' && <AssembliesTabContent />}
+          {tab === 'assemblies' && (
+            <AssembliesTabContent
+              activeAsm={activeAsm}
+              setActiveAsm={setActiveAsm}
+              onArmTool={onArmTool}
+            />
+          )}
 
           {/* Items tab */}
           {tab === 'items' && <PartsTabContent />}
@@ -1271,8 +1803,119 @@ function LeftPanel({
 
 // ─── Right inspector ────────────────────────────────────────────────────────────
 
+/**
+ * Classification, in the Selected Takeoff inspector.
+ *
+ * States whether the values were inherited from the page default or set here,
+ * because that distinction decides what a later page-default change does to this
+ * takeoff. Overriding writes this object's own values and touches nothing else —
+ * not the page default, not another takeoff.
+ */
+function ClassificationSection({ groups, cls, overridden, pageDefault, onChange, onRevert }: {
+  groups: CategoryGroup[];
+  cls: Classification;
+  overridden: boolean;
+  pageDefault: PageDefault | null;
+  onChange: (next: Classification, overridden: boolean) => void;
+  onRevert: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const ordered = sortedGroups(groups);
+  /*
+   * The flag is the truth, not a comparison against today's page default.
+   * Equality-testing looks equivalent and is not: change the page default after a
+   * takeoff inherited from it and the takeoff would start reading "Overridden"
+   * when nobody overrode anything.
+   */
+  const inherited = !overridden;
+  const drifted = inherited && !!pageDefault && !sameClassification(cls, pageDefault.cls);
+
+  return (
+    <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', flex: 1 }}>
+          Classification
+        </span>
+        {inherited ? (
+          <span
+            title={drifted
+              ? 'Inherited from the active classification when this takeoff was created, which differs from the page default now. Existing work is deliberately never rewritten.'
+              : 'These values came from the page default for this sheet.'}
+            style={{ fontSize: 9, fontWeight: 600, color: '#6B7280', background: '#F3F4F6', border: '1px solid #E5E7EB', padding: '1px 6px', borderRadius: 999, whiteSpace: 'nowrap' }}
+          >
+            {drifted ? 'Inherited at creation' : 'Inherited from page defaults'}
+          </span>
+        ) : (
+          <span
+            title="Set on this takeoff. A page-default change will not move it."
+            style={{ fontSize: 9, fontWeight: 600, color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A', padding: '1px 6px', borderRadius: 999, whiteSpace: 'nowrap' }}
+          >
+            Overridden
+          </span>
+        )}
+      </div>
+
+      {ordered.map((g) => {
+        const v = g.values.find((x) => x.id === cls[g.id]);
+        return (
+          <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: 10.5, color: '#9CA3AF', width: 96, flexShrink: 0 }}>{g.name}</span>
+            {editing ? (
+              <select
+                value={cls[g.id] ?? ''}
+                onChange={(e) => onChange({ ...cls, [g.id]: e.target.value }, true)}
+                aria-label={`${g.name} for this takeoff`}
+                style={{ flex: 1, minWidth: 0, height: 26, padding: '0 6px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 11, background: 'white', outline: 'none', color: '#374151' }}
+              >
+                <option value="">—</option>
+                {v && !v.active && <option value={v.id}>{v.name} (inactive)</option>}
+                {selectableValues(g).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+            ) : (
+              <span style={{ fontSize: 11.5, color: v ? '#111827' : '#D1D5DB', fontWeight: 500 }}>
+                {v?.name ?? '—'}
+                {v && !v.active && (
+                  <span style={{ fontSize: 9, color: '#B45309', marginLeft: 5 }}>inactive</span>
+                )}
+              </span>
+            )}
+          </div>
+        );
+      })}
+
+      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+        {!editing ? (
+          <button
+            onClick={() => setEditing(true)}
+            style={{ height: 28, padding: '0 10px', border: '1px solid #E5E7EB', borderRadius: 7, background: 'white', fontSize: 11, fontWeight: 500, color: '#374151', cursor: 'pointer' }}
+          >
+            Override for this takeoff
+          </button>
+        ) : (
+          <button
+            onClick={() => setEditing(false)}
+            style={{ height: 28, padding: '0 10px', border: 'none', borderRadius: 7, background: '#2563EB', fontSize: 11, fontWeight: 600, color: 'white', cursor: 'pointer' }}
+          >
+            Done
+          </button>
+        )}
+        {(overridden || drifted) && pageDefault?.set && (
+          <button
+            onClick={() => { onRevert(); setEditing(false); }}
+            title="Follow the page default again"
+            style={{ height: 28, padding: '0 10px', border: '1px solid #E5E7EB', borderRadius: 7, background: 'white', fontSize: 11, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            <RotateCcw size={11} /> Use page default
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function RightInspector({
-  collapsed, onToggle, tab, onTabChange, selectedMarker, selectedPath, markers, onMarkerUpdate, onChangeAssembly,
+  collapsed, onToggle, tab, onTabChange, selectedMarker, selectedPath, markers, onMarkerUpdate, onChangeAssembly, onUndock,
+  groups, pageDefault, onClsChange, onClsRevert,
 }: {
   collapsed: boolean;
   onToggle: () => void;
@@ -1283,12 +1926,30 @@ function RightInspector({
   markers: CountMarker[];
   onMarkerUpdate: (id: string, patch: Partial<CountMarker>) => void;
   onChangeAssembly: () => void;
+  groups: CategoryGroup[];
+  pageDefault: PageDefault | null;
+  onClsChange: (next: Classification, overridden: boolean) => void;
+  onClsRevert: () => void;
+  /** Float this panel. Absent when it is already floating. */
+  onUndock?: () => void;
 }) {
   const [aiItemStates, setAIItemStates] = useState<Record<string, 'pending' | 'approved' | 'rejected'>>({});
   const [waste, setWaste] = useState('5');
   const [multiplier, setMultiplier] = useState('1');
 
-  const led16 = markers.filter(m => m.assemblyId === 'asm-led-troffer' && m.markerState !== 'ai-suggested').length;
+  /**
+   * How many of *this* assembly are counted on this sheet.
+   *
+   * It used to be hardcoded to the troffer's tally, so selecting a receptacle
+   * showed the fixture count. Derived from the marker the estimator actually has
+   * selected, and read-only for the same reason the list shows Qty read-only on a
+   * digital row: the number comes from counting, not from typing.
+   */
+  const sameAssemblyOnSheet = selectedMarker
+    ? markers.filter((m) => m.assemblyId === selectedMarker.assemblyId
+      && (m.pageId ?? '') === (selectedMarker.pageId ?? '')
+      && m.markerState !== 'ai-suggested').length
+    : 0;
 
   const aiBadge = (c: Confidence) => {
     const cfg = CONF_CFG[c];
@@ -1304,8 +1965,9 @@ function RightInspector({
     <div style={{ width: collapsed ? 0 : 340, minWidth: collapsed ? 0 : 340, borderLeft: '1px solid #E5E7EB', backgroundColor: 'white', display: 'flex', flexDirection: 'column', overflow: 'hidden', transition: 'width 200ms ease, min-width 200ms ease', position: 'relative', flexShrink: 0 }}>
       {!collapsed && (
         <>
-          {/* Tab strip */}
-          <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
+          {/* Tab strip, with the undock handle beside the tabs. */}
+          <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
+            {onUndock && <span style={{ paddingLeft: 4 }}><UndockButton onUndock={onUndock} label="Properties panel" /></span>}
             {(['properties', 'assembly', 'pricing', 'ai-review'] as const).map(t => (
               <button key={t} onClick={() => onTabChange(t)} style={{ flex: 1, height: 38, border: 'none', backgroundColor: 'transparent', cursor: 'pointer', fontSize: t === 'ai-review' ? 9.5 : 10.5, fontWeight: tab === t ? 600 : 400, color: tab === t ? '#2563EB' : '#6B7280', borderBottom: tab === t ? '2px solid #2563EB' : '2px solid transparent', textTransform: 'capitalize' }}>
                 {t === 'ai-review' ? 'AI Review' : t.charAt(0).toUpperCase() + t.slice(1)}
@@ -1334,10 +1996,14 @@ function RightInspector({
                 <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: 10 }}>
                   <label style={{ fontSize: 10, color: '#6B7280', display: 'block', marginBottom: 4 }}>Quantity (this page)</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <button onClick={() => onMarkerUpdate(selectedMarker.id, { number: Math.max(1, selectedMarker.number - 1) })} style={{ width: 26, height: 26, borderRadius: 4, border: '1px solid #E5E7EB', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                    <input type="number" value={led16} readOnly style={{ width: 52, height: 26, border: '1px solid #E5E7EB', borderRadius: 4, textAlign: 'center', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: '#111827', background: 'white' }} />
-                    <button style={{ width: 26, height: 26, borderRadius: 4, border: '1px solid #E5E7EB', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                    <span style={{ fontSize: 10, color: '#9CA3AF' }}>ea</span>
+                    <input
+                      type="number"
+                      value={sameAssemblyOnSheet}
+                      readOnly
+                      title="Counted from the markers on this sheet — add or remove markers to change it"
+                      style={{ width: 52, height: 26, border: '1px solid #E5E7EB', borderRadius: 4, textAlign: 'center', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: '#111827', background: '#F9FAFB' }}
+                    />
+                    <span style={{ fontSize: 10, color: '#9CA3AF' }}>ea counted</span>
                   </div>
                 </div>
                 {selectedMarker.markerState === 'ai-suggested' && (
@@ -1393,6 +2059,15 @@ function RightInspector({
                   <input type="checkbox" style={{ width: 12, height: 12, cursor: 'pointer' }} />
                   Exclude from estimate
                 </label>
+
+                <ClassificationSection
+                  groups={groups}
+                  cls={selectedMarker.cls ?? {}}
+                  overridden={!!selectedMarker.clsOverridden}
+                  pageDefault={pageDefault}
+                  onChange={onClsChange}
+                  onRevert={onClsRevert}
+                />
               </div>
             )}
             {tab === 'properties' && selectedPath && !selectedMarker && (
@@ -1430,6 +2105,15 @@ function RightInspector({
                     <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#374151', backgroundColor: '#F9FAFB', padding: '2px 6px', borderRadius: 3 }}>{f.value}</span>
                   </div>
                 ))}
+
+                <ClassificationSection
+                  groups={groups}
+                  cls={selectedPath.cls ?? {}}
+                  overridden={!!selectedPath.clsOverridden}
+                  pageDefault={pageDefault}
+                  onChange={onClsChange}
+                  onRevert={onClsRevert}
+                />
               </div>
             )}
 
@@ -1743,12 +2427,20 @@ interface TakeoffWorkspaceProps {
 export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
   const [activeTool, setActiveTool] = useState<Tool>('select');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [zoom, setZoom] = useState(0.85);
+  /*
+   * Opens showing the whole sheet.
+   *
+   * The canvas is shorter than it was — the Takeoff List took the bottom — and a
+   * real drawing is 857 units tall, so the old 0.85 put the building below the
+   * fold and the workspace opened on a title block. 0.55 fits E-1 and E-2 whole,
+   * which is where a takeoff starts: see the sheet, then zoom to work.
+   */
+  const [zoom, setZoom] = useState(0.55);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
   const [activePageIdx, setActivePageIdx] = useState(0);
-  const [leftTab, setLeftTab] = useState<'pages' | 'takeoff' | 'layers' | 'assemblies' | 'items'>('pages');
+  const [leftTab, setLeftTab] = useState<LeftTab>('pages');
   const [rightTab, setRightTab] = useState<'properties' | 'assembly' | 'pricing' | 'ai-review'>('properties');
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [showSymbols, setShowSymbols] = useState(true);
@@ -1771,6 +2463,417 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
   const [showAssemblyPanel, setShowAssemblyPanel] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const markerNextNum = useRef(markers.length + 1);
+
+  // ── Project Breakdown classification ──────────────────────────────────────
+  const groups = useProjectBreakdown();
+  const pageDefaults = usePageDefaults();
+  const [activeCls, setActiveCls] = useState<Classification>({});
+  /** Set once the estimator picks a System by hand — suggestions stop then. */
+  const [systemTouched, setSystemTouched] = useState(false);
+  const [showManageDefaults, setShowManageDefaults] = useState(false);
+  const [clsFilter, setClsFilter] = useState<Classification>({});
+  /** 'discipline' keeps the original grouping; any group id regroups by it. */
+  const [groupBy, setGroupBy] = useState<string>('discipline');
+
+  /**
+   * Manual or Digital. One dataset either way.
+   *
+   * Nothing about the project's records is scoped to this: switching changes which
+   * *tools* are on screen, and the Takeoff List below stays exactly as it was.
+   */
+  const [mode, setMode] = useState<TakeoffMode>('digital');
+
+  // ── The project's takeoff records ─────────────────────────────────────────
+  const records = useTakeoffRecords();
+  const recordTotals = totalsFor(records);
+
+  /**
+   * What the estimator is counting.
+   *
+   * Held here because three things need it: the assemblies list highlights it, the
+   * toolbar arms its measurement tool, and the canvas stamps it onto every marker
+   * placed. `onArmTool` is the §19 behaviour — activating an assembly selects the
+   * tool its measurement type implies, and the estimator can still override.
+   */
+  const [activeAsm, setActiveAsm] = useState<SidebarAssembly>(SIDEBAR_ASSEMBLIES[0]);
+  const armTool = (tool: 'Count' | 'Linear') => {
+    const next: Tool = tool === 'Linear' ? 'linear' : 'count';
+    if (next === 'linear' && !pages[activePageIdx]?.scale) {
+      // A length needs a scale. Calibrate first rather than measure in pixels.
+      setPendingTool(next);
+      setShowCalibration(true);
+      return;
+    }
+    setActiveTool(next);
+  };
+
+  /**
+   * Dock state for the major panels.
+   *
+   * Docked is the default for all of them; floating is the power-user escape. Held
+   * in one map so a panel is never half-docked, and paired with a rect per panel so
+   * a float remembers where the estimator put it across dock/undock cycles.
+   */
+  const [panelDock, setPanelDock] = useState<Record<'tools' | 'workspace' | 'inspector', DockState>>({
+    tools: 'docked', workspace: 'docked', inspector: 'docked',
+  });
+  const [panelRects, setPanelRects] = useState<Record<'tools' | 'workspace' | 'inspector', FloatRect>>({
+    // Tall enough for the tool rows to wrap in a 620px frame without clipping.
+    tools: { x: 360, y: 150, w: 620, h: 132 },
+    workspace: { x: 90, y: 140, w: 320, h: 520 },
+    inspector: { x: 700, y: 140, w: 380, h: 540 },
+  });
+  const undock = (k: 'tools' | 'workspace' | 'inspector') =>
+    setPanelDock((p) => ({ ...p, [k]: 'floating' }));
+  const dock = (k: 'tools' | 'workspace' | 'inspector') =>
+    setPanelDock((p) => ({ ...p, [k]: 'docked' }));
+  const setRect = (k: 'tools' | 'workspace' | 'inspector', r: FloatRect) =>
+    setPanelRects((p) => ({ ...p, [k]: r }));
+
+  /** Docked by default; floating and collapsing are the estimator's to choose. */
+  const [takeoffListDock, setTakeoffListDock] = useState<DockMode>('docked');
+  const [takeoffListCollapsed, setTakeoffListCollapsed] = useState(false);
+  const [takeoffListHeight, setTakeoffListHeight] = useState(232);
+  /** Record ids selected in the list, kept in step with the canvas selection. */
+  const [listSelection, setListSelection] = useState<string[]>([]);
+
+  const activePageObj = pages[activePageIdx];
+
+  /**
+   * The takeoff on the sheet currently open.
+   *
+   * A marker without a `pageId` predates per-sheet takeoff and is shown on the
+   * first sheet rather than hidden — losing work to a missing field would be
+   * worse than putting it on the wrong drawing, where it can at least be seen
+   * and moved.
+   */
+  const onThisSheet = <T extends { pageId?: string }>(row: T) =>
+    (row.pageId ?? pages[0]?.id) === activePageObj?.id;
+  const sheetMarkers = useMemo(
+    () => markers.filter(onThisSheet),
+    [markers, activePageObj?.id, pages],
+  );
+  const sheetPaths = useMemo(
+    () => paths.filter(onThisSheet),
+    [paths, activePageObj?.id, pages],
+  );
+
+  /*
+   * Read the drawing set once so a sheet titled "Lighting Plan Level 2" arrives
+   * as Floor 2 + Lighting. Seeded entries are suggestions, not decisions — the
+   * estimator confirms one with "Use as page default".
+   */
+  useEffect(() => { seedPageDefaults(pages); }, [pages, groups]);
+
+  /*
+   * Switching pages loads that page's classification for *new* work only.
+   * Existing takeoffs keep what they were assigned — retroactively rewriting them
+   * is the one thing this must never do.
+   */
+  useEffect(() => {
+    if (!activePageObj) return;
+    const pd = getPageDefault(activePageObj.id);
+    setActiveCls(pd ? { ...pd.cls } : defaultClassification(groups));
+    setSystemTouched(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePageObj?.id, groups.length]);
+
+  /*
+   * Backfill takeoff that predates classification.
+   *
+   * Work already on the drawing has no `cls`, which would leave it unclassified
+   * everywhere downstream — invisible to the takeoff filters and to Bid Summary
+   * scope, and shown in the inspector as an override of nothing. It is filled in
+   * from its page default, exactly as inheritance would have done at creation.
+   *
+   * Only ever fills a *missing* value: an assigned classification, inherited or
+   * overridden, is never touched, so this cannot rewrite anyone's work.
+   */
+  useEffect(() => {
+    if (!groups.length || !activePageObj) return;
+    const clsForPage = (pageId?: string) => {
+      const pd = getPageDefault(pageId ?? activePageObj.id);
+      return pd ? pd.cls : defaultClassification(groups);
+    };
+    const fill = <T extends { pageId?: string; cls?: Classification }>(row: T): T => (
+      row.cls && Object.keys(row.cls).length
+        ? row
+        : { ...row, cls: { ...clsForPage(row.pageId) } }
+    );
+    setMarkers((ms) => (ms.some((m) => !m.cls || !Object.keys(m.cls).length) ? ms.map(fill) : ms));
+    setPaths((ps) => (ps.some((p) => !p.cls || !Object.keys(p.cls).length) ? ps.map(fill) : ps));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups.length, pageDefaults, activePageObj?.id]);
+
+  /* The manual rows the job starts with — equipment taken off the schedules. */
+  useEffect(() => {
+    if (groups.length) seedManualRecords(groups);
+  }, [groups.length]);
+
+  /**
+   * Keep the digital records equal to what is on the drawings.
+   *
+   * The canvas is the authority for digital quantities: a record's Qty *is* the
+   * number of markers that share its assembly, sheet, classification and
+   * measurement type, and its LF *is* the summed length of its paths. Recomputed
+   * from the geometry rather than incremented per click, so an undo, a delete or a
+   * reclassification cannot leave the list one ahead of the drawing.
+   *
+   * Manual records are never touched here — they have no geometry to derive from,
+   * which is exactly why they are stored rather than computed.
+   */
+  useEffect(() => {
+    if (!groups.length) return;
+
+    const wanted = new Map<string, {
+      key: ReturnType<typeof buildDigitalKeyInput>;
+      quantity: number;
+      length: number;
+    }>();
+
+    function buildDigitalKeyInput(row: { assemblyId?: string; assembly?: string; cls?: Classification; pageId?: string }, measurementType: 'count' | 'linear') {
+      return {
+        sheetId: row.pageId ?? pages[0]?.id,
+        assemblyId: row.assemblyId || undefined,
+        classification: row.cls ?? {},
+        measurementType,
+      };
+    }
+
+    const bump = (
+      keyInput: ReturnType<typeof buildDigitalKeyInput>,
+      name: string, code: string, unit: string,
+      qty: number, len: number,
+    ) => {
+      const id = digitalRecordKey(keyInput);
+      const at = wanted.get(id);
+      if (at) { at.quantity += qty; at.length += len; return; }
+      wanted.set(id, { key: keyInput, quantity: qty, length: len });
+      // Names travel with the first contributor; they are display-only.
+      digitalMeta.set(id, { name, code, unit });
+    };
+
+    const digitalMeta = new Map<string, { name: string; code: string; unit: string }>();
+
+    /*
+     * The assembly's own code, not its row id.
+     * -------------------------------------
+     * A marker stores the sidebar row's id (`sa-1`), which is an internal handle;
+     * the audit trail has to show the code an estimator would quote on a purchase
+     * order. Looked up by id, falling back to the id only if nothing matches.
+     */
+    const codeFor = (assemblyId: string) =>
+      SIDEBAR_ASSEMBLIES.find((a) => a.id === assemblyId)?.code
+      ?? ALL_ASSEMBLIES.find((a) => a.id === assemblyId)?.code
+      ?? assemblyId
+      ?? '—';
+
+    for (const m of markers) {
+      // An unconfirmed AI suggestion is not takeoff until someone accepts it.
+      if (m.markerState === 'ai-suggested' || !m.assembly) continue;
+      bump(buildDigitalKeyInput(m, 'count'), m.assembly, codeFor(m.assemblyId), 'EA', 1, 0);
+    }
+    for (const p of paths) {
+      bump(buildDigitalKeyInput(p, 'linear'), p.assembly, '—', 'LF', 1, p.totalLength);
+    }
+
+    // Create or correct every record the drawings imply…
+    const markerToRecord: Record<string, string> = {};
+    for (const [id, entry] of wanted) {
+      const meta = digitalMeta.get(id)!;
+      findOrCreateDigitalRecord({
+        ...entry.key,
+        name: meta.name,
+        code: meta.code,
+        unit: meta.unit,
+      });
+      setDigitalMeasure(id, {
+        quantity: entry.quantity,
+        measuredLength: entry.key.measurementType === 'linear' ? Math.round(entry.length * 10) / 10 : undefined,
+        name: meta.name,
+        code: meta.code,
+      });
+    }
+    // …and retire the digital records whose geometry is gone.
+    for (const r of getRecords()) {
+      if (r.sourceType !== 'digital') continue;
+      if (!wanted.has(r.id)) setDigitalMeasure(r.id, { quantity: 0 });
+    }
+
+    // The marker → record map the selection bridge reads.
+    for (const m of markers) {
+      if (m.markerState === 'ai-suggested' || !m.assembly) continue;
+      markerToRecord[m.id] = digitalRecordKey(buildDigitalKeyInput(m, 'count'));
+    }
+    for (const p of paths) {
+      markerToRecord[p.id] = digitalRecordKey(buildDigitalKeyInput(p, 'linear'));
+    }
+    geometryToRecord.current = markerToRecord;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markers, paths, groups.length, pages]);
+
+  /**
+   * Selection, shared between the drawing and the list.
+   *
+   * The two surfaces name things differently — the canvas selects geometry, the
+   * list selects records, and one record covers many markers — so the bridge is
+   * explicit in both directions rather than an effect. Effects here would
+   * ping-pong: each selection would set the other, which would set the first back.
+   */
+  const geometryToRecord = useRef<Record<string, string>>({});
+
+  /** A marker was selected on the drawing → light up the row that aggregates it. */
+  useEffect(() => {
+    const ids = [...new Set(selectedIds.map((gid) => geometryToRecord.current[gid]).filter(Boolean))];
+    setListSelection((prev) => (
+      prev.length === ids.length && prev.every((x) => ids.includes(x)) ? prev : ids
+    ));
+  }, [selectedIds]);
+
+  /** A row was selected in the list → select every marker it accounts for. */
+  function handleListSelection(recordIds: string[]) {
+    setListSelection(recordIds);
+    const set = new Set(recordIds);
+    const geo = Object.entries(geometryToRecord.current)
+      .filter(([, rid]) => set.has(rid))
+      .map(([gid]) => gid);
+    setSelectedIds(geo);
+    /*
+     * Follow the row to its sheet. Highlighting markers on a drawing the estimator
+     * is not looking at is the same as not highlighting them.
+     */
+    const first = records.find((r) => set.has(r.id) && r.sheetId);
+    if (first?.sheetId) {
+      const idx = pages.findIndex((p) => p.id === first.sheetId);
+      if (idx >= 0 && idx !== activePageIdx) setActivePageIdx(idx);
+    }
+  }
+
+  function handleRemoveRecords(ids: string[]) {
+    const set = new Set(ids);
+    /*
+     * Removing a digital record removes the geometry behind it — the drawing and
+     * the list are one dataset, so deleting the row and leaving its markers would
+     * put them straight back on the next recompute.
+     */
+    const geo = new Set(Object.entries(geometryToRecord.current)
+      .filter(([, rid]) => set.has(rid))
+      .map(([gid]) => gid));
+    if (geo.size) {
+      setMarkers((ms) => ms.filter((m) => !geo.has(m.id)));
+      setPaths((ps) => ps.filter((p) => !geo.has(p.id)));
+    }
+    removeRecords([...ids].filter((id) => {
+      const r = records.find((x) => x.id === id);
+      return r?.sourceType === 'manual';
+    }));
+    setSelectedIds([]);
+    setListSelection([]);
+  }
+
+  /**
+   * An assembly or part dragged onto the Takeoff List.
+   *
+   * In manual mode it becomes a record straight away with a quantity of one, ready
+   * to be typed over in the row. In digital mode the estimator is being asked to
+   * place it, so the matching tool is armed instead of a record being invented —
+   * dropping a fixture on the list while working on a drawing means "I want to
+   * count these", not "add one somewhere".
+   */
+  function handleDropIntoList(payload: { kind: 'assembly' | 'part'; id: string }) {
+    const asm = payload.kind === 'assembly'
+      ? ALL_ASSEMBLIES.find((a) => a.id === payload.id)
+      : null;
+    const part = payload.kind === 'part'
+      ? MASTER_PARTS.find((p) => p.id === payload.id)
+      : null;
+    const name = asm?.name ?? part?.name ?? 'Item';
+    const code = asm?.code ?? part?.code ?? '—';
+    const measure = asm
+      ? defaultMeasureType(categoryOf(asm), `${asm.subcat ?? ''} ${asm.type ?? ''} ${asm.name}`)
+      : 'count';
+
+    if (mode === 'digital') {
+      setActiveTool(measure === 'linear' ? 'linear' : 'count');
+      toast.info(`${measure === 'linear' ? 'Linear' : 'Count'} tool armed for ${name}`, {
+        description: 'Place it on the drawing — the record appears here as you go.',
+      });
+      return;
+    }
+
+    addRecord({
+      sourceType: 'manual',
+      assemblyId: asm?.id,
+      partId: part?.id,
+      name,
+      code,
+      unit: measure === 'linear' ? 'LF' : (part?.unit ?? 'EA'),
+      measurementType: measure,
+      quantity: 1,
+      measuredLength: measure === 'linear' ? 0 : undefined,
+      classification: { ...activeCls },
+    });
+    toast.success('Added to takeoff', {
+      description: `${name} — set the quantity in the row below.`,
+    });
+  }
+
+  /** The System the active assembly implies, offered only while untouched. */
+  const activeAssemblyName = '2×4 LED Troffer 40W';
+  const systemGroup = groupByType(groups, 'system');
+  const suggestion = useMemo(() => {
+    if (systemTouched || !systemGroup) return null;
+    const v = suggestSystemValue(groups, activeAssemblyName);
+    if (!v || activeCls[systemGroup.id] === v.id) return null;
+    return { name: v.name, valueId: v.id, groupId: systemGroup.id };
+  }, [groups, systemTouched, systemGroup, activeCls, activeAssemblyName]);
+
+  /** New work inherits the active classification, by id. */
+  const inheritCls = (): Classification => ({ ...activeCls });
+
+  function applyBulkClassification(patch: Classification) {
+    const ids = new Set(selectedIds);
+    let n = 0;
+    setMarkers((ms) => ms.map((m) => {
+      if (!ids.has(m.id)) return m;
+      n += 1;
+      return { ...m, cls: { ...(m.cls ?? {}), ...patch }, clsOverridden: true };
+    }));
+    setPaths((ps) => ps.map((x) => (ids.has(x.id)
+      ? { ...x, cls: { ...(x.cls ?? {}), ...patch }, clsOverridden: true }
+      : x)));
+    const named = Object.entries(patch)
+      .map(([gid, vid]) => groups.find((g) => g.id === gid)?.values.find((v) => v.id === vid)?.name)
+      .filter(Boolean).join(' · ');
+    toast.success('Classification applied', {
+      description: `${n || ids.size} takeoff${(n || ids.size) === 1 ? '' : 's'} set to ${named}. Page defaults unchanged.`,
+    });
+  }
+
+  /**
+   * Publish classified takeoff for the Master Estimate.
+   *
+   * A flat list of what exists and how it is classified, so a Bid Summary can
+   * filter it on any dimension without the estimate being split or rebuilt.
+   */
+  useEffect(() => {
+    const rows: ClassifiedTakeoff[] = [
+      ...markers
+        .filter((m) => m.markerState !== 'ai-suggested')
+        .map((m) => ({
+          id: m.id, assemblyId: m.assemblyId, assembly: m.assembly,
+          pageId: m.pageId ?? activePageObj?.id ?? '',
+          cls: m.cls ?? {}, quantity: 1,
+        })),
+      ...paths.map((x) => ({
+        id: x.id, assemblyId: '', assembly: x.assembly,
+        pageId: x.pageId ?? activePageObj?.id ?? '',
+        cls: x.cls ?? {}, quantity: Math.round(x.totalLength),
+      })),
+    ];
+    publishClassifiedTakeoff(rows);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markers, paths]);
 
   // Apply demo state changes
   useEffect(() => {
@@ -1869,10 +2972,13 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
     const newPath: LinearPath = {
       id: `lp${Date.now()}`,
       points: [...linearInProgress],
-      assembly: '3/4" EMT Conduit',
-      color: '#D97706',
+      assembly: activeAsm.name,
+      color: COLOR_FOR_CAT[activeAsm.cat] ?? '#D97706',
       totalLength: Math.round(metres * 10) / 10,
       selected: false,
+      cls: inheritCls(),
+      clsOverridden: false,
+      pageId: activePageObj?.id,
     };
     setPaths(p => [...p, newPath]);
     setLinearInProgress([]);
@@ -1888,12 +2994,18 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
       setMarkers(ms => [...ms, {
         id: `m-new-${num}`,
         x: coords.x, y: coords.y,
-        assembly: '2×4 LED Troffer 40W',
-        assemblyId: 'asm-led-troffer',
-        discipline: 'lighting',
-        color: '#7C3AED',
+        // Whatever is active in the assemblies list — not a hardcoded fixture.
+        assembly: activeAsm.name,
+        assemblyId: activeAsm.id,
+        discipline: DISC_FOR_CAT[activeAsm.cat] ?? 'power',
+        color: COLOR_FOR_CAT[activeAsm.cat] ?? '#2563EB',
         markerState: 'default',
         number: num,
+        // Inherited at placement, by id. Not overridden — the estimator has not
+        // touched this one yet, so it still follows the page default.
+        cls: inheritCls(),
+        clsOverridden: false,
+        pageId: activePageObj?.id,
       }]);
     } else if (activeTool === 'linear') {
       setLinearInProgress(pts => [...pts, coords]);
@@ -1969,9 +3081,88 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
         onRedo={() => {}}
         onHelp={() => setShowShortcuts(true)}
         onExit={onExit}
+        sheetLabel={mode === 'manual' ? 'Manual Takeoff' : `Sheet ${activePageObj?.num ?? ''}`}
+        modeSwitch={(
+          <ModeSwitch
+            mode={mode}
+            onChange={setMode}
+            counts={{ manual: recordTotals.manual, digital: recordTotals.digital }}
+          />
+        )}
       />
 
+      <ClassificationBar
+        groups={groups}
+        cls={activeCls}
+        onChange={(next) => {
+          // Choosing a System by hand ends the suggestions for this page.
+          if (systemGroup && next[systemGroup.id] !== activeCls[systemGroup.id]) setSystemTouched(true);
+          setActiveCls(next);
+        }}
+        page={activePageObj}
+        pageDefault={activePageObj ? (pageDefaults[activePageObj.id] ?? null) : null}
+        onUseAsPageDefault={() => {
+          if (!activePageObj) return;
+          setPageDefault(activePageObj.id, activeCls);
+          toast.success('Page default set', {
+            description: `New takeoffs on ${activePageObj.num} will inherit ${classificationLabel(groups, activeCls)}. Existing takeoffs are unchanged.`,
+          });
+        }}
+        onManageDefaults={() => setShowManageDefaults(true)}
+        suggestion={suggestion}
+        onAcceptSuggestion={() => {
+          if (!suggestion) return;
+          setActiveCls((c) => ({ ...c, [suggestion.groupId]: suggestion.valueId }));
+          setSystemTouched(true);
+        }}
+      />
+
+      {/* Page defaults are a drawing concept — a manual record has no sheet. */}
+      {mode === 'digital' && (
+        <PageDefaultNote
+          groups={groups}
+          page={activePageObj}
+          pageDefault={activePageObj ? (pageDefaults[activePageObj.id] ?? null) : null}
+        />
+      )}
+
+      {mode === 'digital' && selectedIds.length > 1 && (
+        <BulkClassifyBar
+          groups={groups}
+          count={selectedIds.length}
+          onApply={applyBulkClassification}
+          onClear={() => setSelectedIds([])}
+        />
+      )}
+
+      {mode === 'manual' ? (
+        /*
+         * Manual Takeoff.
+         * -------------
+         * The Libraries Browse experience, unchanged and *reused* — the same
+         * component, hierarchy, search, global filters, assemblies, parts, BOM and
+         * list view. Building a second library here would guarantee the two drift,
+         * and the estimator would have to learn both.
+         *
+         * The only difference is where "Add to Takeoff" lands: a project takeoff
+         * record classified by the active context above, no drawing required.
+         */
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'white' }}>
+          <ManualTakeoffPanel
+            activeCls={activeCls}
+            groups={groups}
+            onRecorded={(name, qty) => {
+              toast.success('Added to takeoff', {
+                description: `${name} × ${qty} · ${classificationLabel(groups, activeCls)} — in the Takeoff List below.`,
+              });
+            }}
+          />
+        </div>
+      ) : (
+      <>
+      {panelDock.tools === 'docked' && (
       <TakeoffToolbar
+        onUndock={() => undock('tools')}
         activeTool={activeTool}
         onToolChange={t => {
           if ((t === 'measure' || t === 'linear') && !pages[activePageIdx]?.scale) {
@@ -1990,6 +3181,7 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
         dimBackground={dimBackground}
         onToggleDim={() => setDimBackground(v => !v)}
       />
+      )}
 
       {/* Banners */}
       {showMissingScaleBanner && (
@@ -2011,6 +3203,18 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
 
       {/* Main content area */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        {/*
+          Collapsed leaves a labelled rail, not a hairline.
+          -----------------------------------------------
+          The reopen affordance used to be a 20px chevron hanging off a zero-width
+          panel, which is easy to miss entirely. The rail keeps the panel visibly
+          present-and-closed and is the button that brings it back.
+        */}
+        {leftCollapsed && panelDock.workspace === 'docked' && (
+          <CollapsedRail label="Workspace" side="left" onExpand={() => setLeftCollapsed(false)} icon={<LayersIcon size={13} />} />
+        )}
+
+        {panelDock.workspace === 'docked' && !leftCollapsed && (
         <LeftPanel
           collapsed={leftCollapsed}
           onToggle={() => setLeftCollapsed(v => !v)}
@@ -2020,6 +3224,14 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
           onPageChange={setActivePageIdx}
           pages={pages}
           markers={markers}
+          groups={groups}
+          activeAsm={activeAsm}
+          setActiveAsm={setActiveAsm}
+          onArmTool={armTool}
+          clsFilter={clsFilter}
+          onClsFilter={setClsFilter}
+          groupBy={groupBy}
+          onGroupBy={setGroupBy}
           onRenameSheet={(id, newTitle) => {
             setPages(ps => ps.map(p => p.id === id ? { ...p, title: newTitle } : p));
             toast.success('Sheet renamed');
@@ -2050,7 +3262,9 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
             });
             toast.success('Sub-page created — set its scale independently.');
           }}
+          onUndock={() => undock('workspace')}
         />
+        )}
 
         {/* Canvas */}
         <div
@@ -2066,17 +3280,24 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
             >
               <svg
                 ref={svgRef}
-                width={1200}
-                height={780}
-                style={{ display: 'block', boxShadow: '0 8px 40px rgba(0,0,0,0.18)', cursor: getCursor() }}
+                width={SHEET_W}
+                height={SHEET_H}
+                style={{ display: 'block', boxShadow: '0 8px 40px rgba(0,0,0,0.18)', cursor: getCursor(), background: 'white' }}
                 onClick={handleSvgClick}
                 onMouseMove={handleSvgMouseMove}
                 onDoubleClick={() => { if (activeTool === 'linear' && linearInProgress.length > 1) finishLinearPath(); }}
               >
-                <FloorPlan />
+                <SheetImage page={activePageObj} />
 
-                {/* Linear paths */}
-                {paths.map(path => (
+                {/*
+                  Only this sheet's takeoff.
+                  ------------------------
+                  Markers and paths belong to the drawing they were placed on. Every
+                  page used to render the same synthetic plan, so showing all of them
+                  everywhere was invisible; with real sheets it would put the lighting
+                  plan's fixtures on top of the power plan.
+                */}
+                {sheetPaths.map(path => (
                   <LinearPathEl
                     key={path.id}
                     path={path}
@@ -2090,8 +3311,8 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
                   <LinearInProgressEl points={linearInProgress} mousePos={mousePos} />
                 )}
 
-                {/* Count markers */}
-                {showSymbols && markers.map(m => (
+                {/* Count markers — this sheet's only */}
+                {showSymbols && sheetMarkers.map(m => (
                   <CountMarkerEl
                     key={m.id}
                     marker={m}
@@ -2108,7 +3329,7 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
                   />
                 ))}
                 {/* Dim overlay */}
-                {dimBackground && <rect x={0} y={0} width={1200} height={780} fill="rgba(0,0,0,0.45)" pointerEvents="none" />}
+                {dimBackground && <rect x={0} y={0} width={SHEET_W} height={SHEET_H} fill="rgba(0,0,0,0.45)" pointerEvents="none" />}
               </svg>
             </div>
           </div>
@@ -2209,7 +3430,13 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
           )}
         </div>
 
+        {rightCollapsed && panelDock.inspector === 'docked' && (
+          <CollapsedRail label="Properties" side="right" onExpand={() => setRightCollapsed(false)} icon={<SlidersHorizontal size={13} />} />
+        )}
+
+        {panelDock.inspector === 'docked' && !rightCollapsed && (
         <RightInspector
+          onUndock={() => undock('inspector')}
           collapsed={rightCollapsed}
           onToggle={() => setRightCollapsed(v => !v)}
           tab={rightTab}
@@ -2219,8 +3446,66 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
           markers={markers}
           onMarkerUpdate={(id, patch) => setMarkers(ms => ms.map(m => m.id === id ? { ...m, ...patch } : m))}
           onChangeAssembly={() => setShowAssemblyPanel(true)}
+          groups={groups}
+          pageDefault={activePageObj ? (pageDefaults[activePageObj.id] ?? null) : null}
+          onClsChange={(next, overridden) => {
+            /*
+             * Writes this object only. Page defaults and every other takeoff are
+             * untouched — that separation is the point of the override.
+             */
+            const id = selectedMarker?.id ?? selectedPath?.id;
+            if (!id) return;
+            if (selectedMarker) {
+              setMarkers((ms) => ms.map((m) => (m.id === id ? { ...m, cls: next, clsOverridden: overridden } : m)));
+            } else {
+              setPaths((ps) => ps.map((x) => (x.id === id ? { ...x, cls: next, clsOverridden: overridden } : x)));
+            }
+          }}
+          onClsRevert={() => {
+            const pd = activePageObj ? getPageDefault(activePageObj.id) : null;
+            if (!pd) return;
+            const id = selectedMarker?.id ?? selectedPath?.id;
+            if (!id) return;
+            if (selectedMarker) {
+              setMarkers((ms) => ms.map((m) => (m.id === id ? { ...m, cls: { ...pd.cls }, clsOverridden: false } : m)));
+            } else {
+              setPaths((ps) => ps.map((x) => (x.id === id ? { ...x, cls: { ...pd.cls }, clsOverridden: false } : x)));
+            }
+          }}
         />
+        )}
       </div>
+      </>
+      )}
+
+      {/*
+        The Takeoff List, in both modes.
+        ------------------------------
+        Docked along the bottom so the estimator gets a wide table without
+        permanently surrendering drawing height, and shared between the two modes
+        because it is the one place every record lands. Floating lifts it out of
+        the flow entirely; collapsing leaves the title bar so it can always be got
+        back.
+      */}
+      {takeoffListDock === 'docked' && (
+        <TakeoffListPanel
+          records={records}
+          groups={groups}
+          pages={pages}
+          selectedIds={listSelection}
+          onSelectionChange={handleListSelection}
+          onUpdate={updateRecord}
+          onReclassify={reclassifyRecords}
+          onRemove={handleRemoveRecords}
+          dock={takeoffListDock}
+          onDockChange={setTakeoffListDock}
+          collapsed={takeoffListCollapsed}
+          onCollapsedChange={setTakeoffListCollapsed}
+          height={takeoffListHeight}
+          onHeightChange={setTakeoffListHeight}
+          onDropItem={handleDropIntoList}
+        />
+      )}
 
       <StatusBar
         activePage={activePageIdx}
@@ -2231,8 +3516,149 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
         pages={pages}
       />
 
+      {/* Floating renders outside the column so it can sit anywhere on screen. */}
+      {takeoffListDock === 'floating' && (
+        <TakeoffListPanel
+          records={records}
+          groups={groups}
+          pages={pages}
+          selectedIds={listSelection}
+          onSelectionChange={handleListSelection}
+          onUpdate={updateRecord}
+          onReclassify={reclassifyRecords}
+          onRemove={handleRemoveRecords}
+          dock={takeoffListDock}
+          onDockChange={setTakeoffListDock}
+          collapsed={takeoffListCollapsed}
+          onCollapsedChange={setTakeoffListCollapsed}
+          height={takeoffListHeight}
+          onHeightChange={setTakeoffListHeight}
+          onDropItem={handleDropIntoList}
+        />
+      )}
+
+      {/*
+        Floating panels.
+        --------------
+        Rendered outside the layout column so they can sit anywhere on screen. Each
+        is the same component as its docked form — only the wrapper differs — so a
+        panel cannot behave differently depending on where it is.
+      */}
+      {panelDock.tools === 'floating' && (
+        <FloatingFrame
+          title="Tools"
+          onDock={() => dock('tools')}
+          rect={panelRects.tools}
+          onRectChange={(r) => setRect('tools', r)}
+          minW={420}
+          minH={80}
+        >
+          <TakeoffToolbar
+            floating
+            activeTool={activeTool}
+            onToolChange={t => {
+              if ((t === 'measure' || t === 'linear') && !pages[activePageIdx]?.scale) {
+                setPendingTool(t);
+                setShowCalibration(true);
+                return;
+              }
+              setActiveTool(t);
+              if (t === 'calibrate') setShowCalibration(true);
+            }}
+            snapEnabled={snapEnabled}
+            onSnapToggle={() => setSnapEnabled(v => !v)}
+            onAICount={() => setRightTab('ai-review')}
+            showSymbols={showSymbols}
+            onToggleSymbols={() => setShowSymbols(v => !v)}
+            dimBackground={dimBackground}
+            onToggleDim={() => setDimBackground(v => !v)}
+          />
+        </FloatingFrame>
+      )}
+
+      {panelDock.workspace === 'floating' && (
+        <FloatingFrame
+          title="Workspace panel"
+          onDock={() => dock('workspace')}
+          rect={panelRects.workspace}
+          onRectChange={(r) => setRect('workspace', r)}
+          minW={260}
+        >
+          <LeftPanel
+            collapsed={false}
+            onToggle={() => {}}
+            tab={leftTab}
+            onTabChange={t => setLeftTab(t)}
+            activePage={activePageIdx}
+            onPageChange={setActivePageIdx}
+            pages={pages}
+            markers={markers}
+            groups={groups}
+            activeAsm={activeAsm}
+            setActiveAsm={setActiveAsm}
+            onArmTool={armTool}
+            clsFilter={clsFilter}
+            onClsFilter={setClsFilter}
+            groupBy={groupBy}
+            onGroupBy={setGroupBy}
+            onRenameSheet={(id, newTitle) => {
+              setPages(ps => ps.map(p => p.id === id ? { ...p, title: newTitle } : p));
+              toast.success('Sheet renamed');
+            }}
+            onAddDrawings={() => toast.info('Upload additional drawings via the Drawings screen.')}
+            onReenableSheet={id => setPages(ps => ps.map(p => p.id === id ? { ...p, excluded: false } : p))}
+            onCreateSubPage={() => toast.info('Create sub-pages from the docked panel.')}
+          />
+        </FloatingFrame>
+      )}
+
+      {panelDock.inspector === 'floating' && (
+        <FloatingFrame
+          title="Properties"
+          onDock={() => dock('inspector')}
+          rect={panelRects.inspector}
+          onRectChange={(r) => setRect('inspector', r)}
+          minW={300}
+        >
+          <RightInspector
+            collapsed={false}
+            onToggle={() => {}}
+            tab={rightTab}
+            onTabChange={setRightTab}
+            selectedMarker={selectedMarker}
+            selectedPath={(!selectedMarker && selectedPath) ? selectedPath : null}
+            markers={markers}
+            onMarkerUpdate={(id, patch) => setMarkers(ms => ms.map(m => m.id === id ? { ...m, ...patch } : m))}
+            onChangeAssembly={() => setShowAssemblyPanel(true)}
+            groups={groups}
+            pageDefault={activePageObj ? (pageDefaults[activePageObj.id] ?? null) : null}
+            onClsChange={(next, overridden) => {
+              const id = selectedMarker?.id ?? selectedPath?.id;
+              if (!id) return;
+              if (selectedMarker) {
+                setMarkers((ms) => ms.map((m) => (m.id === id ? { ...m, cls: next, clsOverridden: overridden } : m)));
+              } else {
+                setPaths((ps) => ps.map((x) => (x.id === id ? { ...x, cls: next, clsOverridden: overridden } : x)));
+              }
+            }}
+            onClsRevert={() => {
+              const pd = activePageObj ? getPageDefault(activePageObj.id) : null;
+              if (!pd) return;
+              const id = selectedMarker?.id ?? selectedPath?.id;
+              if (!id) return;
+              if (selectedMarker) {
+                setMarkers((ms) => ms.map((m) => (m.id === id ? { ...m, cls: { ...pd.cls }, clsOverridden: false } : m)));
+              } else {
+                setPaths((ps) => ps.map((x) => (x.id === id ? { ...x, cls: { ...pd.cls }, clsOverridden: false } : x)));
+              }
+            }}
+          />
+        </FloatingFrame>
+      )}
+
       {/* Demo state switcher */}
-      <div style={{ position: 'fixed', bottom: 42, left: 16, backgroundColor: 'white', border: '1px solid #E5E7EB', borderRadius: 6, padding: '6px 8px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 6, zIndex: 60 }}>
+      {/* Above the status bar, right side: the Takeoff List owns the bottom-left now. */}
+      <div style={{ position: 'fixed', bottom: 42, right: 16, backgroundColor: 'white', border: '1px solid #E5E7EB', borderRadius: 6, padding: '6px 8px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 6, zIndex: 40 }}>
         <span style={{ fontSize: 9, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Demo state</span>
         <select
           value={demoState}
@@ -2266,6 +3692,17 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
       />
 
       {/* Modals */}
+      {showManageDefaults && (
+        <ManageDefaultsModal
+          groups={groups}
+          pages={pages}
+          defaults={pageDefaults}
+          onSet={(pageId, cls) => setPageDefault(pageId, cls)}
+          onClear={(pageId) => clearPageDefault(pageId)}
+          onClose={() => setShowManageDefaults(false)}
+        />
+      )}
+
       {showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
       {showCalibration && (
         <ScaleCalibrationModal
@@ -2300,8 +3737,42 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
               <Minimize2 size={11} /> Exit fullscreen
             </button>
           </div>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-            <FloorPlan />
+          {/*
+            The real sheet, with this page's takeoff on it.
+            --------------------------------------------
+            This used to render `<FloorPlan />` — a bare SVG `<g>` with no `<svg>`
+            root. A `<g>` outside an SVG document paints nothing, so the viewer
+            showed only its own dark background: the "blue screen". It now draws the
+            drawing itself in the sheet coordinate space, scaled to fit the window,
+            with the markers and paths so the point of going fullscreen — reading
+            the plan and its counts at size — actually holds.
+          */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 16 }}>
+            <svg
+              viewBox={`0 0 ${SHEET_W} ${SHEET_H}`}
+              style={{
+                width: '100%', height: '100%', maxWidth: '100%', maxHeight: '100%',
+                background: 'white', boxShadow: '0 10px 50px rgba(0,0,0,0.5)',
+                display: 'block',
+              }}
+            >
+              <SheetImage page={pages[activePageIdx]} />
+              {sheetPaths.map((path) => (
+                <LinearPathEl key={path.id} path={path} isSelected={false} onClick={() => {}} />
+              ))}
+              {showSymbols && sheetMarkers.map((m) => (
+                <CountMarkerEl
+                  key={m.id}
+                  marker={m}
+                  isSelected={selectedIds.includes(m.id)}
+                  isHovered={false}
+                  onMouseEnter={() => {}}
+                  onMouseLeave={() => {}}
+                  onClick={() => {}}
+                  onContextMenu={(e) => e.preventDefault()}
+                />
+              ))}
+            </svg>
           </div>
         </div>
       )}

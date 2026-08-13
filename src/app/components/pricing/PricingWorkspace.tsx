@@ -3,16 +3,57 @@ import { toast } from 'sonner';
 import {
   Search, SlidersHorizontal, Download, Upload, ChevronDown, ChevronUp, ChevronRight,
   MoreHorizontal, AlertTriangle, Lock, Check, X, ExternalLink, Sparkles,
-  FileText,
+  FileText, Info,
 } from 'lucide-react';
 import { ProjectHeader } from '../projects/ProjectHeader';
 import {
   PricingSource, ItemStatus, Discipline, SystemGroup, DrawingLocation, PricingRow,
   SYSTEM_ORDER, MATERIAL_LINES,
 } from '../../lib/materials';
+import { LABOR_PROFILES, laborProfile, useLaborProfile } from '../../lib/costing';
+import { AREA_BY_DRAWING, SYSTEM_BY_GROUP } from '../../lib/bidScope';
+import {
+  CategoryGroup, CategoryValue, useProjectBreakdown, sortedGroups, sortedValues,
+  selectableValues,
+} from '../../lib/projectBreakdown';
 
 /** The job's priced material, shared with the Bid Builder. */
 const ROWS = MATERIAL_LINES;
+
+// ─── Project Breakdown, applied to priced material ────────────────────────────
+
+/**
+ * Which Project Breakdown value a material line falls under.
+ *
+ * Joined on `sourceKey`, never on the display name — the same rule the usage
+ * counts follow — so renaming "Floor 2" to "Level 2" in Project Breakdown keeps
+ * every figure on this screen attached to it.
+ *
+ * Area comes from the sheet the material was taken off (`AREA_BY_DRAWING`) and
+ * System from the estimate's own system group (`SYSTEM_BY_GROUP`): both are real
+ * joins that already existed for Bid Summary scope. **Bid Package has no source
+ * on a material line** — a package is assigned to takeoff work, not to a priced
+ * row — so those lines report the project's default package, and the group header
+ * says so rather than implying the split has been made.
+ */
+function valueForRow(group: CategoryGroup, row: PricingRow): CategoryValue | null {
+  const bySourceKey = (key?: string) =>
+    (key ? group.values.find((v) => v.sourceKey === key) : undefined) ?? null;
+
+  if (group.type === 'area') return bySourceKey(AREA_BY_DRAWING[row.drawingPage]);
+  if (group.type === 'system') return bySourceKey(SYSTEM_BY_GROUP[row.system]);
+  if (group.type === 'bid-package') {
+    return group.values.find((v) => v.isDefault) ?? group.values[0] ?? null;
+  }
+  /* A custom group has no rule to reach a priced row yet. Reporting nothing is
+     the honest answer; guessing one would put money against a value nobody
+     assigned. */
+  return null;
+}
+
+/** True where this dimension can actually place a priced row. */
+const groupIsDerivable = (g: CategoryGroup) =>
+  g.type === 'area' || g.type === 'system' || g.type === 'bid-package';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -471,7 +512,9 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
   const [viewportW, setViewportW] = useState<number | undefined>(undefined);
   const [collapsedSystems, setCollapsedSystems] = useState<Set<string>>(new Set());
   const [showLabor, setShowLabor] = useState(false);
-  const [globalLaborProfile, setGlobalLaborProfile] = useState('neca-2');
+  /* Shared with the Bid Builder's Labor section — one profile per estimate, so the
+     two screens cannot state different rate bases for the same job. */
+  const [globalLaborProfile, setGlobalLaborProfile] = useLaborProfile();
   const [discLaborOverrides, setDiscLaborOverrides] = useState<Record<string, string>>({});
   const [asmLaborOverride, setAsmLaborOverride] = useState<{ assembly: string; rate: string }>({ assembly: '', rate: '' });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -489,6 +532,49 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
     return () => window.removeEventListener('resize', measure);
   }, []);
 
+  /**
+   * Project Breakdown filters: `groupId → Set(valueId)`.
+   *
+   * **Multi-select per dimension, AND across dimensions.** Within Area, picking
+   * Floor 1 and Floor 2 means "either" — an estimator narrowing to two floors wants
+   * both, not nothing. Across dimensions it tightens: Area = Floor 1 *and* System =
+   * Lighting is the lighting on floor one. That is the only reading that matches
+   * how the dimensions are defined — independent facts about the same row.
+   *
+   * An empty set for a dimension means no opinion on it, never "exclude
+   * everything", so the default state shows the whole list.
+   */
+  const [breakdownFilter, setBreakdownFilter] = useState<Record<string, Set<string>>>({});
+
+  /* The project's own vocabulary — read live, so a value added or renamed under
+     Project Breakdown appears here without a change to this screen. */
+  const breakdownGroups = useProjectBreakdown();
+
+  const breakdownFilterCount = Object.values(breakdownFilter)
+    .reduce((n, set) => n + set.size, 0);
+
+  function toggleBreakdownValue(groupId: string, valueId: string) {
+    setBreakdownFilter((prev) => {
+      const next = { ...prev };
+      const set = new Set(next[groupId] ?? []);
+      if (set.has(valueId)) set.delete(valueId); else set.add(valueId);
+      if (set.size) next[groupId] = set; else delete next[groupId];
+      return next;
+    });
+  }
+
+  /** Does this row satisfy every dimension the estimator has an opinion on? */
+  const matchesBreakdown = (row: PricingRow) => {
+    for (const [groupId, wanted] of Object.entries(breakdownFilter)) {
+      if (!wanted.size) continue;
+      const group = breakdownGroups.find((g) => g.id === groupId);
+      if (!group) continue;
+      const value = valueForRow(group, row);
+      if (!value || !wanted.has(value.id)) return false;
+    }
+    return true;
+  };
+
   const filtered = useMemo(() => {
     let list = ROWS;
     if (search.trim()) {
@@ -498,13 +584,14 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
     if (filterDiscipline) list = list.filter((r) => r.discipline === filterDiscipline);
     if (filterStatus) list = list.filter((r) => r.status === filterStatus);
     if (filterSource) list = list.filter((r) => r.selectedSource === filterSource);
+    if (breakdownFilterCount) list = list.filter(matchesBreakdown);
     return [...list].sort((a, b) => {
       const av = (a as Record<string, unknown>)[sortCol];
       const bv = (b as Record<string, unknown>)[sortCol];
       if (typeof av === 'number' && typeof bv === 'number') return sortDir === 'asc' ? av - bv : bv - av;
       return sortDir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
     });
-  }, [search, filterDiscipline, filterStatus, filterSource, sortCol, sortDir]);
+  }, [search, filterDiscipline, filterStatus, filterSource, sortCol, sortDir, breakdownFilter, breakdownGroups]);
 
   function toggleSort(col: string) {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -513,6 +600,7 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
 
   function clearFilters() {
     setSearch(''); setFilterDiscipline(''); setFilterStatus(''); setFilterSource('');
+    setBreakdownFilter({});
   }
 
   // Totals. Material only — every other bucket is the Bid Builder's.
@@ -525,10 +613,56 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
   const filteredMaterial = filtered.reduce((s, r) => s + r.extMaterialCost, 0);
   const filteredNeca1 = filtered.reduce((s, r) => s + r.neca1 * r.qty, 0);
 
+  /**
+   * How the Materials table is grouped.
+   *
+   * `'system'` is the electrical-system grouping this screen has always had and
+   * stays the default; anything else is a Project Breakdown group id, so the
+   * estimator can read material by Bid Package or by Area without leaving the
+   * screen or re-deriving the numbers somewhere else.
+   */
+  const [groupByDim, setGroupByDim] = useState<string>('system');
+  const activeDim = breakdownGroups.find((g) => g.id === groupByDim) ?? null;
+
   // Materials grouped by electrical system, in a fixed reading order (req 5).
   const systemGroups = useMemo(() => SYSTEM_ORDER
-    .map((system) => ({ system, rows: filtered.filter((r) => r.system === system) }))
+    .map((system) => ({ key: system as string, label: system as string, rows: filtered.filter((r) => r.system === system), note: '' }))
     .filter((g) => g.rows.length > 0), [filtered]);
+
+  /**
+   * The same rows grouped by a Project Breakdown dimension.
+   *
+   * Values in the group's own order, so the table reads the way Project
+   * Breakdown is arranged. A value with no material is dropped; rows the
+   * dimension cannot place collect under "Unassigned" rather than vanishing —
+   * a total that silently omits lines is worse than one that names the gap.
+   */
+  const dimensionGroups = useMemo(() => {
+    if (!activeDim) return [];
+    const out: { key: string; label: string; rows: PricingRow[]; note: string }[] = [];
+    const placed = new Set<string>();
+    const note = activeDim.type === 'bid-package'
+      ? 'Project default — a package is assigned in Takeoff, not on a priced line'
+      : '';
+
+    for (const v of sortedValues(activeDim)) {
+      const rows = filtered.filter((r) => valueForRow(activeDim, r)?.id === v.id);
+      rows.forEach((r) => placed.add(r.id));
+      if (rows.length) out.push({ key: v.id, label: v.name, rows, note });
+    }
+    const rest = filtered.filter((r) => !placed.has(r.id));
+    if (rest.length) {
+      out.push({
+        key: '__unassigned__',
+        label: 'Unassigned',
+        rows: rest,
+        note: `No ${activeDim.name.toLowerCase()} recorded against these lines`,
+      });
+    }
+    return out;
+  }, [activeDim, filtered]);
+
+  const shownGroups = activeDim ? dimensionGroups : systemGroups;
 
   const COL_DEFS = [
     { key: 'description', label: 'Description', width: 250, frozen: true },
@@ -616,7 +750,7 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
           onClick={() => setShowFilters((v) => !v)}
           style={{ height: 34, padding: '0 12px', border: `1px solid ${showFilters ? '#BFDBFE' : '#E5E7EB'}`, borderRadius: 8, background: showFilters ? '#EFF6FF' : 'white', fontSize: 12, color: showFilters ? '#1D4ED8' : '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
         >
-          <SlidersHorizontal size={12} /> Filters{(filterDiscipline || filterStatus || filterSource) ? ' ·' : ''}
+          <SlidersHorizontal size={12} /> Filters{(filterDiscipline || filterStatus || filterSource || breakdownFilterCount) ? ` · ${(filterDiscipline ? 1 : 0) + (filterStatus ? 1 : 0) + (filterSource ? 1 : 0) + breakdownFilterCount}` : ''}
         </button>
         {selectedRows.size > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 10px', background: '#EFF6FF', borderRadius: 8, fontSize: 12, color: '#1D4ED8', fontWeight: 500 }}>
@@ -668,6 +802,85 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
         </div>
       )}
 
+      {/*
+        Project Breakdown filters.
+        ------------------------
+        Chips rather than dropdowns, because these are multi-select: two floors or
+        three systems is a normal narrowing, and a `<select multiple>` hides which
+        values are on. Each dimension is a row of its own values, read live from the
+        project — a group added under Project Breakdown appears here with no change
+        to this screen, which is what makes custom groups work.
+
+        Within a dimension the chips are OR (Floor 1 *or* Floor 2); across dimensions
+        they are AND (that floor *and* that system). Nothing is filtered until a chip
+        is on, so the default view is the whole list.
+      */}
+      {showFilters && (
+        <div style={{ padding: '8px 16px 10px', borderBottom: '1px solid #E5E7EB', background: '#FCFCFD', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Project Breakdown
+            </span>
+            {breakdownFilterCount > 0 && (
+              <>
+                <span style={{ fontSize: 10.5, color: '#1D4ED8', fontWeight: 600 }}>
+                  {breakdownFilterCount} value{breakdownFilterCount === 1 ? '' : 's'} selected
+                </span>
+                <button
+                  onClick={() => setBreakdownFilter({})}
+                  style={{ height: 22, padding: '0 8px', border: '1px solid #E5E7EB', borderRadius: 5, background: 'white', fontSize: 10.5, color: '#2563EB', cursor: 'pointer' }}
+                >
+                  Reset breakdown filters
+                </button>
+              </>
+            )}
+            <div style={{ flex: 1 }} />
+            <span style={{ fontSize: 10.5, color: '#9CA3AF' }}>
+              Values come from this project's Project Breakdown.
+            </span>
+          </div>
+
+          {sortedGroups(breakdownGroups).map((g) => {
+            const chosen = breakdownFilter[g.id] ?? new Set<string>();
+            const derivable = groupIsDerivable(g);
+            return (
+              <div key={g.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 5 }}>
+                <span
+                  title={derivable ? undefined : `No ${g.name.toLowerCase()} is recorded against a priced line yet — assign it in Takeoff and it will filter here.`}
+                  style={{ fontSize: 11, color: '#6B7280', width: 104, flexShrink: 0, paddingTop: 3 }}
+                >
+                  {g.name}
+                  {!derivable && <Info size={9} color="#D1D5DB" style={{ marginLeft: 3, verticalAlign: 'middle' }} />}
+                </span>
+                <div className="bp-scroll-x" style={{ display: 'flex', gap: 5, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+                  {selectableValues(g).map((v) => {
+                    const on = chosen.has(v.id);
+                    return (
+                      <button
+                        key={v.id}
+                        onClick={() => toggleBreakdownValue(g.id, v.id)}
+                        aria-pressed={on}
+                        title={derivable ? `Filter to ${v.name}` : `${v.name} — nothing priced carries it yet`}
+                        style={{
+                          height: 24, padding: '0 9px', borderRadius: 999, cursor: 'pointer', fontSize: 11,
+                          whiteSpace: 'nowrap',
+                          border: `1px solid ${on ? '#BFDBFE' : '#E5E7EB'}`,
+                          background: on ? '#EFF6FF' : 'white',
+                          color: on ? '#1D4ED8' : derivable ? '#374151' : '#9CA3AF',
+                          fontWeight: on ? 600 : 400,
+                        }}
+                      >
+                        {v.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Summary bar */}
       <div className="bp-metrics" style={{ padding: '10px 16px', borderBottom: '1px solid #E5E7EB', background: 'white', flexShrink: 0 }}>
         {[
@@ -693,7 +906,7 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
           {showLabor ? <ChevronUp size={13} color="#6B7280" /> : <ChevronDown size={13} color="#6B7280" />}
           Labor Profiles
           <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 400, color: '#9CA3AF' }}>
-            {globalLaborProfile === 'neca-1' ? 'NECA 1' : globalLaborProfile === 'neca-2' ? 'NECA 2' : globalLaborProfile === 'neca-3' ? 'NECA 3' : 'BPE1 – Aggressive'} · Global
+            {laborProfile(globalLaborProfile).label} · Global
           </span>
         </button>
         {showLabor && (
@@ -702,12 +915,8 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Global Labor Profile</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[
-                  { id: 'neca-1', label: 'NECA 1', desc: 'Open shop' },
-                  { id: 'neca-2', label: 'NECA 2', desc: 'Union standard' },
-                  { id: 'neca-3', label: 'NECA 3', desc: 'Union premium' },
-                  { id: 'bpe1', label: 'BPE1 – Aggressive', desc: 'BrightPoint optimized' },
-                ].map((prof) => (
+                {/* One list, defined in costing.ts beside the factor each carries. */}
+                {LABOR_PROFILES.map((prof) => (
                   <button
                     key={prof.id}
                     onClick={() => setGlobalLaborProfile(prof.id)}
@@ -797,10 +1006,69 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
         <CostSection
           title="Materials"
           total={money(filteredMaterial)}
-          meta={`${filtered.length} item${filtered.length !== 1 ? 's' : ''} · ${systemGroups.length} system${systemGroups.length !== 1 ? 's' : ''}`}
+          meta={`${filtered.length} item${filtered.length !== 1 ? 's' : ''} · ${shownGroups.length} ${activeDim ? activeDim.name.toLowerCase() : `system${shownGroups.length !== 1 ? 's' : ''}`}`}
           accent="#2563EB" bg="#EFF6FF" border="#BFDBFE"
           defaultOpen
         >
+          {/*
+            Group by a Project Breakdown dimension.
+            ---------------------------------------
+            The same vocabulary the project defines and Bid Summary scope filters
+            on, applied to priced material — so "what is the material for Floor 2"
+            and "what does Lighting cost" are answered here rather than exported
+            and pivoted somewhere else. Grouping, not a second table: the money is
+            already on every group header, so regrouping *is* the report.
+          */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid #E5E7EB', background: '#FCFCFD', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10.5, color: '#9CA3AF', whiteSpace: 'nowrap' }}>Group by</span>
+            <select
+              value={groupByDim}
+              onChange={(e) => { setGroupByDim(e.target.value); setCollapsedSystems(new Set()); }}
+              aria-label="Group materials by"
+              style={{
+                height: 28, padding: '0 8px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 11,
+                background: activeDim ? '#EFF6FF' : 'white',
+                color: activeDim ? '#1D4ED8' : '#374151',
+                fontWeight: activeDim ? 600 : 400, outline: 'none', cursor: 'pointer',
+              }}
+            >
+              <option value="system">Electrical system</option>
+              {/* Every group, custom ones included. A dimension with no rule to reach
+                  a priced row groups everything under Unassigned and says so, which
+                  is more useful than being absent and unexplained. */}
+              {sortedGroups(breakdownGroups).map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+
+            {activeDim && (() => {
+              /*
+               * Counted without the Unassigned bucket.
+               * ------------------------------------
+               * It is not one of the dimension's values, and including it produced
+               * "1 of 0 Phase values carry material" on a group nothing is assigned
+               * to yet. A dimension with no assignments says so plainly instead —
+               * the rows are all still there, under Unassigned, and the sentence
+               * points at where the assignment is actually made.
+               */
+              const withMaterial = shownGroups.filter((g) => g.key !== '__unassigned__').length;
+              const total = sortedValues(activeDim).length;
+              const name = activeDim.name.toLowerCase();
+              return (
+                <span style={{ fontSize: 10.5, color: withMaterial === 0 ? '#B45309' : '#6B7280' }}>
+                  {withMaterial === 0
+                    ? `No ${name} is recorded against priced lines yet — assign it in Takeoff and it will group here.`
+                    : `${withMaterial} of ${total} ${name} value${total === 1 ? '' : 's'} carry material`}
+                </span>
+              );
+            })()}
+
+            <div style={{ flex: 1, minWidth: 8 }} />
+            <span style={{ fontSize: 10.5, color: '#9CA3AF', whiteSpace: 'nowrap' }}>
+              Totals per group are material only — labor, quotes and expenses stay in the Bid Builder.
+            </span>
+          </div>
+
           <div style={{ overflowX: 'auto' }}>
             <div style={{ minWidth: totalTableW }}>
               {/* Column header */}
@@ -837,14 +1105,15 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
               </div>
 
           {/* Rows grouped by electrical system — never one flat list */}
-          {systemGroups.map(({ system, rows }) => {
+          {shownGroups.map(({ key: system, label, rows, note }) => {
             const groupCollapsed = collapsedSystems.has(system);
             const groupMaterial = rows.reduce((sum, r) => sum + r.extMaterialCost, 0);
             const groupNeca1 = rows.reduce((sum, r) => sum + r.neca1 * r.qty, 0);
             return (
               <div key={system}>
-                {/* System header */}
+                {/* Group header — electrical system, or the chosen breakdown value */}
                 <div
+                  title={note || undefined}
                   onClick={() => setCollapsedSystems((prev) => { const n = new Set(prev); if (n.has(system)) n.delete(system); else n.add(system); return n; })}
                   style={{ display: 'flex', alignItems: 'center', height: 30, background: '#F3F4F6', borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #E5E7EB', cursor: 'pointer', position: 'sticky', left: 0 }}
                 >
@@ -852,8 +1121,10 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
                     {groupCollapsed ? <ChevronRight size={12} color="#6B7280" /> : <ChevronDown size={12} color="#6B7280" />}
                   </div>
                   <div style={{ width: COL_DEFS[0].width, minWidth: COL_DEFS[0].width, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 6, position: 'sticky', left: GUTTER_W, background: '#F3F4F6', height: '100%', zIndex: 3 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>{system}</span>
-                    <span style={{ fontSize: 10, color: '#9CA3AF' }}>{rows.length}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+                    <span style={{ fontSize: 10, color: '#9CA3AF', flexShrink: 0 }}>{rows.length}</span>
+                    {/* Why a value reads the way it does, where it is not obvious. */}
+                    {note && <Info size={10} color="#9CA3AF" style={{ flexShrink: 0 }} />}
                   </div>
                   <div style={{ flex: 1 }} />
                   <div style={{ display: 'flex', gap: 18, paddingRight: 46 }}>

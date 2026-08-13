@@ -153,6 +153,12 @@ export function setGroups(next: CategoryGroup[]) {
   emit();
 }
 
+/** Subscribe to vocabulary changes — used to keep dependent state valid. */
+export function onGroupsChange(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => { listeners.delete(fn); };
+}
+
 export function useProjectBreakdown(): CategoryGroup[] {
   const [snap, setSnap] = useState(groups);
   useEffect(() => {
@@ -275,7 +281,28 @@ export function removeGroup(id: string) {
  * takeoff is actually tagged on. A custom group has no assignments yet and
  * honestly reports zero rather than inventing a number.
  */
+/**
+ * Where real usage comes from, injected rather than imported.
+ *
+ * Takeoff knows what is classified; this module must not import Takeoff to ask.
+ * A cycle here is not merely untidy — `takeoffClassification` subscribes at
+ * module scope, so whichever module loaded second would run against an
+ * uninitialised binding and throw. Inversion keeps the dependency one-way.
+ */
+let usageProvider: (() => Record<string, number>) | null = null;
+
+export function setUsageProvider(fn: () => Record<string, number>) {
+  usageProvider = fn;
+}
+
 export function usageCount(g: CategoryGroup, v: CategoryValue): number {
+  /*
+   * Real assignments win. Once Takeoff has classified work against this value
+   * that count is the truth; the drawing-page derivation below is only a
+   * stand-in for the seeded values before anything has been classified.
+   */
+  const assigned = usageProvider?.()[v.id];
+  if (assigned) return assigned;
   if (!v.sourceKey) return 0;
   if (g.type === 'area') {
     return MATERIAL_LINES

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,7 +21,7 @@ interface CreateProjectWizardProps {
 const STEPS = [
   { id: 1, label: "Project details" },
   { id: 2, label: "Building conditions" },
-  { id: 3, label: "Scope & defaults" },
+  { id: 3, label: "Commercial defaults" },
   { id: 4, label: "Contacts & review" },
 ];
 
@@ -41,17 +41,6 @@ const BUILDING_CONDITIONS = [
   { id: "hazardous", label: "Hazardous location" },
 ];
 
-const DISCIPLINES = [
-  { id: "lighting", label: "Lighting" },
-  { id: "power", label: "Power" },
-  { id: "fire-alarm", label: "Fire alarm" },
-  { id: "low-voltage", label: "Low voltage" },
-  { id: "data", label: "Data" },
-  { id: "security", label: "Security" },
-  { id: "site-electrical", label: "Site electrical" },
-  { id: "demolition", label: "Demolition" },
-  { id: "temp-power", label: "Temporary power" },
-];
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -141,7 +130,6 @@ export function CreateProjectWizard({ onComplete, onCancel }: CreateProjectWizar
   const [conditions, setConditions] = useState<Set<string>>(new Set(["new-construction", "metal-framing"]));
 
   // Step 3 state
-  const [disciplines, setDisciplines] = useState<Set<string>>(new Set(["lighting", "power"]));
   const [taxRate, setTaxRate] = useState("10");
   const [overhead, setOverhead] = useState("12");
   const [markup, setMarkup] = useState("15");
@@ -152,16 +140,37 @@ export function CreateProjectWizard({ onComplete, onCancel }: CreateProjectWizar
     { name: "Mike Patterson", company: "Summit Commercial Builders", role: "Project Manager", email: "m.patterson@summitcb.com.au", phone: "0412 345 678", type: "gc", quoteRecipient: true },
   ]);
 
-  function toggleCondition(id: string) {
-    setConditions((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  /**
+   * General contractors this job is being bid to.
+   *
+   * A list, not a field — bidding the same job to four GCs is the normal case,
+   * and each one is its own proposal recipient with its own price. Ids come from a
+   * counter rather than the array index so a removal cannot re-key the rows that
+   * follow it and move typing from one contractor onto another.
+   */
+  const [biddingGcs, setBiddingGcs] = useState([
+    {
+      id: "gc-1", company: "Summit Commercial Builders", contact: "Mike Patterson",
+      role: "Chief Estimator", email: "estimating@summitcb.com.au", phone: "0412 345 678",
+      dueDate: "", invited: true,
+    },
+  ]);
+  const gcSeq = useRef(1);
+
+  function addGc() {
+    gcSeq.current += 1;
+    setBiddingGcs((prev) => [...prev, {
+      id: `gc-${gcSeq.current}`, company: "", contact: "", role: "",
+      email: "", phone: "", dueDate: "", invited: false,
+    }]);
   }
 
-  function toggleDiscipline(id: string) {
-    setDisciplines((prev) => {
+  function updateGc(i: number, patch: Partial<(typeof biddingGcs)[number]>) {
+    setBiddingGcs((prev) => prev.map((g, idx) => (idx === i ? { ...g, ...patch } : g)));
+  }
+
+  function toggleCondition(id: string) {
+    setConditions((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -371,25 +380,21 @@ export function CreateProjectWizard({ onComplete, onCancel }: CreateProjectWizar
           {step === 3 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <div>
-                <h2 style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 4 }}>Scope and defaults</h2>
-                <p style={{ fontSize: 13, color: "#6B7280" }}>Define which disciplines are in scope and set commercial defaults for this project.</p>
+                <h2 style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 4 }}>Commercial defaults</h2>
+                <p style={{ fontSize: 13, color: "#6B7280" }}>Rates this project starts from. Every one is overridable per bid.</p>
               </div>
+
+              {/*
+                Disciplines & Scope was removed from intake (client, 11 Aug 2026).
+                Intake selections must not restrict which systems or library
+                content are available later: an estimator who ticks Lighting and
+                Power at setup, before the drawings are read, would find Fire Alarm
+                missing from the library on the day they need it. Scope belongs to
+                Project Breakdown and to a Bid Summary, both of which are edited
+                with the drawings in front of you.
+              */}
 
               <div>
-                <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 10 }}>Disciplines in scope</p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-                  {DISCIPLINES.map((d) => (
-                    <CheckItem
-                      key={d.id}
-                      label={d.label}
-                      checked={disciplines.has(d.id)}
-                      onChange={() => toggleDiscipline(d.id)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 20 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 14 }}>Commercial defaults</p>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
                   <Field label="Sales tax rate (%)">
@@ -504,6 +509,110 @@ export function CreateProjectWizard({ onComplete, onCancel }: CreateProjectWizar
                 </div>
               </div>
 
+              {/*
+                Bidding GCs (client, 11 Aug 2026).
+                ---------------------------------
+                Distinct from the contact list above, and deliberately its own
+                section rather than another `type` in that dropdown. A job is
+                commonly bid to several general contractors at once, and each of
+                them is a *proposal recipient* — the Proposal Center sends one
+                priced document per GC. A flat contact list cannot express that:
+                it holds the architect and the owner too, and "which of these do I
+                send a price to" is exactly the question a recipient list has to
+                answer without guessing.
+
+                One estimating contact per GC, because that is who the invitation
+                to bid comes from and who the proposal goes back to.
+              */}
+              <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 20 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Bidding GCs</p>
+                  <span style={{ fontSize: 11, color: "#9CA3AF" }}>
+                    {biddingGcs.length} {biddingGcs.length === 1 ? "contractor" : "contractors"}
+                  </span>
+                </div>
+                <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>
+                  Every general contractor this job is being bid to. These become the
+                  selectable recipients in the Proposal Center, each with its own priced proposal.
+                </p>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {biddingGcs.map((g, i) => (
+                    <div key={g.id} style={{ border: "1px solid #E5E7EB", borderRadius: 8, padding: "14px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>
+                          {g.company || `Contractor ${i + 1}`}
+                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#4B5563", cursor: "pointer" }}>
+                            <input
+                              type="checkbox"
+                              checked={g.invited}
+                              onChange={(e) => updateGc(i, { invited: e.target.checked })}
+                              style={{ accentColor: "#2563EB" }}
+                            />
+                            Invitation received
+                          </label>
+                          <button
+                            onClick={() => setBiddingGcs((prev) => prev.filter((_, idx) => idx !== i))}
+                            aria-label={`Remove ${g.company || `contractor ${i + 1}`}`}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF" }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                        <input
+                          value={g.company}
+                          onChange={(e) => updateGc(i, { company: e.target.value })}
+                          placeholder="Contractor name"
+                          style={inputStyle}
+                        />
+                        <input
+                          value={g.contact}
+                          onChange={(e) => updateGc(i, { contact: e.target.value })}
+                          placeholder="Estimating contact"
+                          style={inputStyle}
+                        />
+                        <input
+                          value={g.role}
+                          onChange={(e) => updateGc(i, { role: e.target.value })}
+                          placeholder="Role / title"
+                          style={inputStyle}
+                        />
+                        <input
+                          value={g.email}
+                          onChange={(e) => updateGc(i, { email: e.target.value })}
+                          placeholder="Email address"
+                          type="email"
+                          style={inputStyle}
+                        />
+                        <input
+                          value={g.phone}
+                          onChange={(e) => updateGc(i, { phone: e.target.value })}
+                          placeholder="Phone number"
+                          style={inputStyle}
+                        />
+                        <input
+                          value={g.dueDate}
+                          onChange={(e) => updateGc(i, { dueDate: e.target.value })}
+                          placeholder="Their bid due date"
+                          style={inputStyle}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    onClick={addGc}
+                    style={{ display: "flex", alignItems: "center", gap: 6, height: 36, padding: "0 14px", border: "1px dashed #D1D5DB", borderRadius: 6, backgroundColor: "transparent", cursor: "pointer", fontSize: 13, color: "#6B7280", width: "fit-content" }}
+                  >
+                    <Plus size={14} />
+                    Add bidding GC
+                  </button>
+                </div>
+              </div>
+
               {/* Summary review */}
               <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 20 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 12 }}>Project summary</p>
@@ -514,7 +623,7 @@ export function CreateProjectWizard({ onComplete, onCancel }: CreateProjectWizar
                     ["General contractor", gc || "—"],
                     ["Bid due", bidDate ? `${bidDate} at ${bidTime}` : "—"],
                     ["Estimator", estimator],
-                    ["Disciplines", disciplines.size > 0 ? `${disciplines.size} selected` : "None"],
+                    ["Overhead", `${overhead}%`],
                     ["Tax rate", `${taxRate}%`],
                     ["Markup", `${markup}%`],
                   ].map(([label, value]) => (

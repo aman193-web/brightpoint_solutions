@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 /**
  * Shared bid costing model.
  *
@@ -487,6 +489,81 @@ export function computeCrew(rows: CrewRow[], totalHours: number): {
   };
 }
 
+// ─── Labor profiles ───────────────────────────────────────────────────────────
+
+/**
+ * A saved labor profile — which published rate basis this estimate is priced on.
+ *
+ * `rateFactor` multiplies the crew's **base** rates only, exactly like the burden
+ * percentage does: an open-shop basis pays less per hour for the same hour of the
+ * same trade, it does not change the fringe dollars a union agreement fixes. The
+ * factor is the whole mechanism, so switching profile moves the money and says by
+ * how much, rather than being a label that changes nothing.
+ */
+export interface LaborProfile {
+  id: string;
+  label: string;
+  desc: string;
+  /** Multiplier on base hourly rates. NECA 2 is the reference at 1. */
+  rateFactor: number;
+}
+
+export const LABOR_PROFILES: LaborProfile[] = [
+  { id: 'neca-1', label: 'NECA 1',            desc: 'Open shop',            rateFactor: 0.88 },
+  { id: 'neca-2', label: 'NECA 2',            desc: 'Union standard',       rateFactor: 1 },
+  { id: 'neca-3', label: 'NECA 3',            desc: 'Union premium',        rateFactor: 1.12 },
+  { id: 'bpe1',   label: 'BPE1 — Aggressive', desc: 'BrightPoint optimized', rateFactor: 0.94 },
+];
+
+export const DEFAULT_LABOR_PROFILE = 'neca-2';
+
+export const laborProfile = (id: string): LaborProfile =>
+  LABOR_PROFILES.find((p) => p.id === id) ?? LABOR_PROFILES[1];
+
+/**
+ * The selected profile, held for the whole app.
+ *
+ * Pricing and the Bid Builder both show it, and it is one fact about the estimate
+ * — held in a module store for the same reason the Libraries filters are, since
+ * the two screens are never mounted together and per-screen state would let them
+ * disagree about what the job is priced on.
+ */
+let activeLaborProfile = DEFAULT_LABOR_PROFILE;
+const laborProfileListeners = new Set<() => void>();
+
+export function getLaborProfile(): string {
+  return activeLaborProfile;
+}
+
+export function setLaborProfile(id: string) {
+  activeLaborProfile = id;
+  for (const l of laborProfileListeners) l();
+}
+
+export function onLaborProfileChange(fn: () => void): () => void {
+  laborProfileListeners.add(fn);
+  return () => { laborProfileListeners.delete(fn); };
+}
+
+/** Crew rows re-based onto a labor profile. Identity at NECA 2. */
+export function applyLaborProfile<T extends { baseRate: number }>(rows: T[], id: string): T[] {
+  const f = laborProfile(id).rateFactor;
+  if (f === 1) return rows;
+  return rows.map((r) => ({ ...r, baseRate: r.baseRate * f }));
+}
+
+/**
+ * The company's default blended labour rate, in dollars per hour.
+ *
+ * Derived from the default crew template rather than typed as its own constant,
+ * so a Parts Library labour cost and a bid's labour cost can never quote
+ * different money for the same hour. Change the template and both move.
+ */
+export const COMPANY_LABOR_RATE: number = computeCrew(
+  CREW_TEMPLATES[0].rows.map((r, i) => ({ ...r, id: `default-crew-${i}` })),
+  100,
+).blendedRate;
+
 // ─── Direct job expenses ──────────────────────────────────────────────────────
 
 export interface ExpenseRow {
@@ -559,4 +636,16 @@ export function defaultCrewCost(): number {
     CREW_TEMPLATES[0].rows.map((r, i) => ({ ...r, id: `seed-${i}` })),
     TAKEOFF_LABOR_HOURS,
   ).costTotal;
+}
+
+/** Subscribe a view to the selected labor profile. Returns [id, setId]. */
+export function useLaborProfile(): [string, (id: string) => void] {
+  const [snap, setSnap] = useState(activeLaborProfile);
+  useEffect(() => {
+    const l = () => setSnap(activeLaborProfile);
+    laborProfileListeners.add(l);
+    l();
+    return () => { laborProfileListeners.delete(l); };
+  }, []);
+  return [snap, setLaborProfile];
 }

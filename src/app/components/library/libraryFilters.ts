@@ -11,6 +11,7 @@
  * to the builder instead of asking the same questions twice.
  */
 
+import { useEffect, useState } from 'react';
 import { Part, MASTER_PARTS, BOMItem } from './libraryData';
 
 // ─── Vocabulary ───────────────────────────────────────────────────────────────
@@ -73,6 +74,49 @@ export function contextsFromProject(conditionIds: string[]): ContextId[] {
 export const PROJECT_CONTEXTS: ContextId[] = contextsFromProject([
   'metal-framing', 'act-ceiling',
 ]);
+
+// ─── The workspace-wide filter selection ──────────────────────────────────────
+
+/**
+ * The active building conditions, held for the whole Libraries workspace.
+ *
+ * A module store rather than state in each view, because Browse and Build are
+ * never mounted at the same time — `LibraryView` returns one or the other. With
+ * the selection held locally, switching Browse → Build unmounted the filters and
+ * remounted them at the project defaults, silently discarding what the estimator
+ * had set. The conditions are a fact about the *job*, not about which screen is
+ * open, so they live outside both.
+ *
+ * Same subscribe/snapshot shape as `takeoffQueue` and `projectBreakdown`.
+ */
+let contextFilters: ContextId[] = [...PROJECT_CONTEXTS];
+const filterListeners = new Set<() => void>();
+
+export function getContextFilters(): ContextId[] {
+  return contextFilters;
+}
+
+export function setContextFilters(next: ContextId[]) {
+  contextFilters = next;
+  for (const l of filterListeners) l();
+}
+
+export function onContextFiltersChange(fn: () => void): () => void {
+  filterListeners.add(fn);
+  return () => { filterListeners.delete(fn); };
+}
+
+/** Subscribe a view to the shared selection. Returns [active, setActive]. */
+export function useContextFilters(): [ContextId[], (next: ContextId[]) => void] {
+  const [snap, setSnap] = useState(contextFilters);
+  useEffect(() => {
+    const l = () => setSnap(contextFilters);
+    filterListeners.add(l);
+    l();
+    return () => { filterListeners.delete(l); };
+  }, []);
+  return [snap, setContextFilters];
+}
 
 // ─── Compatibility ────────────────────────────────────────────────────────────
 
@@ -259,6 +303,72 @@ export function partAllowed(part: Part, active: ContextId[]): boolean {
 }
 
 export const contextParts = (active: ContextId[]) => MASTER_PARTS.filter((p) => partAllowed(p, active));
+
+// ─── Assemblies the context permits ───────────────────────────────────────────
+
+/**
+ * An assembly's declared contexts, read into the filter vocabulary.
+ *
+ * `Assembly.context` is display text written for an estimator to read — "Bar
+ * Joist – Open Ceiling", "Hard Ceiling – Metal Framing" — not ids. Matched on
+ * substrings rather than a lookup table so a phrasing added to the catalogue
+ * tomorrow is still understood, and so the en dash in those labels cannot break
+ * the match by being typed as a hyphen somewhere.
+ *
+ * Only structure and ceiling are read. "Indoor", "Exposed", "Outdoor",
+ * "Concealed" and "Underground" describe the *environment*, which the filter
+ * vocabulary does not cover — an assembly declaring only those is unconstrained
+ * here rather than being hidden by a condition nobody expressed.
+ */
+export function assemblyContextIds(context: string[]): ContextId[] {
+  const out = new Set<ContextId>();
+  for (const c of context) {
+    const s = c.toLowerCase();
+    if (/metal framing/.test(s)) out.add('metal-framing');
+    if (/wood framing/.test(s)) out.add('wood-framing');
+    if (/act ceiling|drop ceiling/.test(s)) out.add('act-ceiling');
+    if (/bar joist/.test(s)) out.add('bar-joist');
+    if (/open ceiling/.test(s)) out.add('open-ceiling');
+    if (/concrete/.test(s)) out.add('concrete');
+    if (/cmu|masonry/.test(s)) out.add('cmu-masonry');
+    if (/surface mount/.test(s)) out.add('surface-mount');
+    if (/hazardous|explosion/.test(s)) out.add('hazardous');
+  }
+  return [...out];
+}
+
+/**
+ * Whether an assembly belongs on a job with these conditions.
+ *
+ * Two independent tests, both of which must pass:
+ *
+ * 1. **What it claims.** An assembly built for a suspended grid says "ACT
+ *    Ceiling"; on a job with no ACT ceiling it is the wrong assembly, so a
+ *    declared structure or ceiling has to be one the job actually has. An
+ *    assembly that declares nothing structural is not judged on this.
+ * 2. **What it is wired with.** The wiring method runs through the same
+ *    `permitted()` rule the Build Mode dropdowns use, so Romex disappears on
+ *    metal framing and everything non-rigid disappears in a Class I location by
+ *    the same rule, not a second copy of it.
+ *
+ * A wiring method this module does not know (`FPLR 18/2`, `Measure Separately`)
+ * is left alone deliberately: hiding an assembly because its wiring string was
+ * unrecognised would be a false negative, and a filter that hides the right
+ * answer is worse than one that shows an extra row.
+ */
+export function assemblyAllowed(
+  a: { context: string[]; wiringMethod: string }, active: ContextId[],
+): boolean {
+  if (active.length === 0) return true;
+
+  const declared = assemblyContextIds(a.context);
+  if (declared.length > 0 && !declared.some((id) => active.includes(id))) return false;
+
+  const wiring = WIRING_OPTIONS.find((o) => o.label === a.wiringMethod);
+  if (wiring && !permitted(wiring, active)) return false;
+
+  return true;
+}
 
 // ─── The contextual configurator ──────────────────────────────────────────────
 

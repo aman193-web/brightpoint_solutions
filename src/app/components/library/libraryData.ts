@@ -125,6 +125,208 @@ export interface Part {
   price: number;
   /** BOM group a part lands in when added to an assembly. */
   bomGroup: string;
+  /**
+   * Labour class for installing one unit, and the hours it takes.
+   *
+   * Optional because the catalogue is large and most parts fall squarely into a
+   * class their BOM group already implies — `laborTypeOf` derives it. Set
+   * explicitly only where a part genuinely differs from its group, so a change to
+   * the group's default still reaches everything that never needed an exception.
+   */
+  laborType?: LaborType;
+  /** Hours per unit. Absent means take the labour type's standard. */
+  laborUnit?: number;
+  /** Where this price came from. Absent derives from the category. */
+  pricingSource?: PricingSource;
+  /** Which labour-unit column the hours are read from. Absent means NECA 2. */
+  laborRateSource?: LaborRateSource;
+}
+
+// ─── Pricing source ───────────────────────────────────────────────────────────
+
+/**
+ * Where a price actually came from — the first thing an estimator checks before
+ * trusting a number, and the reason a stale catalogue price and a quote received
+ * this morning must not look alike in the table.
+ */
+export type PricingSource =
+  | 'Supplier quote' | 'Trade price list' | 'Manufacturer list'
+  | 'Brightpoint catalogue' | 'Manual entry';
+
+export const PRICING_SOURCES: PricingSource[] = [
+  'Supplier quote', 'Trade price list', 'Manufacturer list',
+  'Brightpoint catalogue', 'Manual entry',
+];
+
+/**
+ * Category → where its prices come from in practice.
+ *
+ * Commodity material is requoted constantly, so wire and conduit sit on a
+ * supplier quote; fixtures and fire alarm heads are bought against a
+ * manufacturer's list; small hardware nobody quotes stays on the catalogue.
+ * A per-part `pricingSource` overrides this.
+ */
+const PRICING_BY_CATEGORY: Record<string, PricingSource> = {
+  'Wire & Cable':        'Supplier quote',
+  'Raceway & Fittings':  'Supplier quote',
+  'Fixtures & Lamps':    'Manufacturer list',
+  'Fire Alarm':          'Manufacturer list',
+  Devices:               'Trade price list',
+  'Boxes & Covers':      'Trade price list',
+  'Hangers & Supports':  'Brightpoint catalogue',
+  Fasteners:             'Brightpoint catalogue',
+};
+
+export function pricingSourceOf(p: Part): PricingSource {
+  return p.pricingSource ?? PRICING_BY_CATEGORY[p.cat] ?? 'Brightpoint catalogue';
+}
+
+// ─── Labour rate source ───────────────────────────────────────────────────────
+
+/**
+ * Which published labour-unit column a part's hours are read from.
+ *
+ * The NECA columns are *installation conditions*, not prices: column 1 is the
+ * easiest run, column 3 the hardest (height, congestion, existing building).
+ * Brightpoint is the company's own history, which is why it sits slightly under
+ * the book — an estimator who has measured their own crews should be able to say
+ * so per part rather than discounting the whole bid at the end.
+ */
+export type LaborRateSource = 'NECA 1' | 'NECA 2' | 'NECA 3' | 'Brightpoint';
+
+export const LABOR_RATE_SOURCES: LaborRateSource[] = ['NECA 1', 'NECA 2', 'NECA 3', 'Brightpoint'];
+
+export const LABOR_SOURCE_FACTOR: Record<LaborRateSource, number> = {
+  'NECA 1': 0.85,
+  'NECA 2': 1,
+  'NECA 3': 1.30,
+  Brightpoint: 0.95,
+};
+
+export const LABOR_SOURCE_NOTE: Record<LaborRateSource, string> = {
+  'NECA 1': 'NECA column 1 — favourable conditions, open and accessible',
+  'NECA 2': 'NECA column 2 — normal conditions (the book default)',
+  'NECA 3': 'NECA column 3 — difficult conditions, height or occupied space',
+  Brightpoint: "Brightpoint's own measured install hours",
+};
+
+export function laborRateSourceOf(p: Part): LaborRateSource {
+  return p.laborRateSource ?? 'NECA 2';
+}
+
+/**
+ * How a part is installed, in the terms an estimator prices labour in.
+ *
+ * Deliberately about the *work*, not the material: a troffer and a wall pack are
+ * both "Fixture install" because that is what the hours are drawn from.
+ */
+export type LaborType =
+  | 'Fixture install' | 'Device trim' | 'Wire pull' | 'Raceway run'
+  | 'Termination' | 'Equipment set' | 'Hardware' | 'No labour';
+
+export const LABOR_TYPES: LaborType[] = [
+  'Fixture install', 'Device trim', 'Wire pull', 'Raceway run',
+  'Termination', 'Equipment set', 'Hardware', 'No labour',
+];
+
+/** Standard hours per unit for a labour class. The per-part override wins. */
+export const LABOR_STANDARD: Record<LaborType, number> = {
+  'Fixture install': 0.80,
+  'Device trim':     0.45,
+  'Wire pull':       0.03,
+  'Raceway run':     0.18,
+  Termination:       0.12,
+  'Equipment set':   2.50,
+  Hardware:          0.05,
+  'No labour':       0,
+};
+
+/** BOM group → labour class. The derivation every part falls back to. */
+const LABOR_BY_BOM_GROUP: Record<string, LaborType> = {
+  Fixture: 'Fixture install',
+  Emergency: 'Fixture install',
+  Device: 'Device trim',
+  Controls: 'Device trim',
+  Wiring: 'Wire pull',
+  Grounding: 'Wire pull',
+  Raceway: 'Raceway run',
+  'Box & Cover': 'Termination',
+  Mounting: 'Hardware',
+  Hardware: 'Hardware',
+  'Primary Item': 'Equipment set',
+};
+
+/**
+ * Part category → labour class, consulted before the BOM group.
+ *
+ * The BOM group answers "where does this sit in a bill of materials", which is
+ * not always the same question as "how is it installed". A 0-10V control wire is
+ * BOM group Controls and would inherit Device trim — 0.45 hrs for a foot of
+ * wire. Where the category is unambiguous about the *work*, it wins.
+ */
+const LABOR_BY_CATEGORY: Record<string, LaborType> = {
+  'Wire & Cable': 'Wire pull',
+  'Raceway & Fittings': 'Raceway run',
+  Fasteners: 'Hardware',
+};
+
+export function laborTypeOf(p: Part): LaborType {
+  return p.laborType ?? LABOR_BY_CATEGORY[p.cat] ?? LABOR_BY_BOM_GROUP[p.bomGroup] ?? 'Hardware';
+}
+
+/**
+ * Hours to install one unit of this part.
+ *
+ * An explicit `laborUnit` is the estimator's own figure and wins outright,
+ * including a deliberate 0 — which is why this is `??` and not `||`. Otherwise
+ * the labour class's standard is read through the part's rate source, so
+ * switching a part to NECA 3 moves its hours the way the book says it should.
+ */
+export function laborHoursOf(p: Part): number {
+  if (p.laborUnit !== undefined) return p.laborUnit;
+  const std = LABOR_STANDARD[laborTypeOf(p)];
+  return Math.round(std * LABOR_SOURCE_FACTOR[laborRateSourceOf(p)] * 1000) / 1000;
+}
+
+/** Installed labour cost for one unit, at a given loaded crew rate. */
+export function laborCostOf(p: Part, loadedRate: number): number {
+  return laborHoursOf(p) * loadedRate;
+}
+
+// ─── Recency ──────────────────────────────────────────────────────────────────
+
+/**
+ * How recently a part entered the catalogue — higher is newer.
+ *
+ * Position in `MASTER_PARTS` is the record of when a part was added: entries are
+ * appended, so the tail is the newest. Defined here rather than in each list so
+ * "Recently added" means the same thing in Settings, Browse and Build; three
+ * screens each deciding their own answer is how the same sort ends up in three
+ * different orders.
+ *
+ * A screen holding its own additions (Settings) ranks those above everything
+ * here, since they are newer than anything shipped.
+ */
+let partOrder: Map<string, number> | null = null;
+
+function partOrderMap(): Map<string, number> {
+  /* Built on first call, never at module scope: `MASTER_PARTS` is declared
+     further down this file, so a module-level initialiser reading it would run
+     inside its temporal dead zone and throw on import. */
+  if (!partOrder) partOrder = new Map(MASTER_PARTS.map((p, i) => [p.id, i]));
+  return partOrder;
+}
+
+export function partRecency(p: Part): number {
+  const i = partOrderMap().get(p.id);
+  /* Not in the catalogue means a part this company added, which is newer than
+     anything shipped with the product. */
+  return i === undefined ? Number.MAX_SAFE_INTEGER : i;
+}
+
+/** Comparator: most recently added first. */
+export function byRecentlyAdded(a: Part, b: Part): number {
+  return partRecency(b) - partRecency(a);
 }
 
 export const PART_CATEGORIES: { name: string; subcats: string[] }[] = [
@@ -986,6 +1188,90 @@ export const RACEWAY_SUPPORTS = [
   'Concrete Anchor',
   'Wood Screw',
 ];
+
+// ─── Measurement type ─────────────────────────────────────────────────────────
+
+/**
+ * How an assembly is quantified on the plan: clicked one at a time, or measured
+ * along a path.
+ */
+export type MeasureType = 'count' | 'linear';
+
+/**
+ * The measurement type an assembly implies.
+ *
+ * A fixture and a receptacle are counted; conduit, cable tray and an LED strip
+ * are measured. Derived from the category, then refined by the name, because the
+ * category is right about most of its members and wrong about a few — a lighting
+ * category holds both troffers (count) and linear strip (measured), and the only
+ * thing that distinguishes them is what the assembly is.
+ *
+ * A default, never a lock: the estimator overrides it in the header, and a run of
+ * fixtures on a continuous row genuinely is a linear measure.
+ */
+export function defaultMeasureType(code: CategoryCode, name = ''): MeasureType {
+  const n = name.toLowerCase();
+  // Named exceptions first — these beat whatever their category usually is.
+  if (/strip|tape light|cove|linear run|handrail/.test(n)) return 'linear';
+  if (/\bwhip\b|pigtail/.test(n)) return 'count';
+
+  switch (code) {
+    case 'BPC-03':            // Raceway / Cable
+    case 'BPC-04':            // Feeders
+      return 'linear';
+    default:
+      return 'count';
+  }
+}
+
+export const MEASURE_LABEL: Record<MeasureType, string> = {
+  count: 'Count',
+  linear: 'Linear',
+};
+
+/** The unit a measurement type is quantified in. */
+export const MEASURE_UNIT: Record<MeasureType, string> = {
+  count: 'EA',
+  linear: 'LF',
+};
+
+// ─── Feeder sizing ────────────────────────────────────────────────────────────
+
+/**
+ * Feeder ampacities an estimator picks from — Feeders (BPC-04) only.
+ *
+ * A rating, not a calculation. This narrows which wiring methods are offered and
+ * names the assembly; it deliberately does **not** derive a conductor size or a
+ * conduit trade size from the amps. Which conductor an ampacity requires depends
+ * on termination temperature, ambient correction, conduit fill and derating — it
+ * is a code calculation, and inventing one here would be a wrong answer wearing
+ * the costume of a right one. Same rule the raceway builder follows for fill.
+ */
+export const FEEDER_AMPS = ['60A', '100A', '125A', '200A', '400A', '600A', '800A', '1200A'];
+
+export const feederAmpsValue = (amps: string) => parseInt(amps, 10) || 0;
+
+/**
+ * Whether a wiring method is a feeder method at this ampacity.
+ *
+ * Matched on the **conductor size in the label**, because that is what the option
+ * actually says: the wiring list is branch-circuit cable (`MC 12/2`, `AC 12/2`,
+ * `NM-B`) alongside raceway-and-conductor methods (`EMT with THHN`). A 12 or 14
+ * AWG cable assembly is a 15–20 A branch circuit — it is not a 60 A feeder, let
+ * alone an 800 A one, so it is removed at every feeder rating rather than at some
+ * threshold.
+ *
+ * Not an ampacity calculation, and deliberately not a substitute for one: which
+ * conductor a rating requires still depends on temperature, correction and
+ * derating, and the estimator sizes it. This only stops the list offering methods
+ * that could never be the answer.
+ */
+export function feederMethodAllowed(label: string, amps: string): boolean {
+  if (!feederAmpsValue(amps)) return true;
+  // Branch-circuit conductor sizes named in the option itself.
+  if (/\b1[024]\/[23]\b|\b1[024] AWG\b|Romex|NM-B/i.test(label)) return false;
+  return true;
+}
 
 /** The termination fitting a raceway type takes at each end. */
 export function racewayConnector(raceway: string): { name: string; code: string } | null {

@@ -15,6 +15,7 @@ import {
   COST_CATEGORIES,
   money, pct,
   TAKEOFF_LABOR_HOURS, DEFAULT_SQUARE_FEET,
+  LABOR_PROFILES, DEFAULT_LABOR_PROFILE, laborProfile, applyLaborProfile, useLaborProfile,
 } from '../../lib/costing';
 import {
   MATERIAL_LINES, missingPriceLines, priceBookRate, applyPriceBook, excludeLine,
@@ -146,11 +147,13 @@ const HEALTH_ISSUES: HealthIssue[] = [
  * price. Now the scope defines what goes *into* a summary and the summary is
  * what gets quoted.
  */
-function SummaryStrip({ summaries, activeId, priceOf, onSelect, onRename, onDuplicate, onDelete }: {
+function SummaryStrip({ summaries, activeId, priceOf, onSelect, onEditScope, onRename, onDuplicate, onDelete }: {
   summaries: BidSummary[];
   activeId: string;
   priceOf: (s: BidSummary) => number;
   onSelect: (id: string) => void;
+  /** Edit the scope of the selected summary. Offered on the active card only. */
+  onEditScope: () => void;
   onRename: (id: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
@@ -175,7 +178,7 @@ function SummaryStrip({ summaries, activeId, priceOf, onSelect, onRename, onDupl
             <button
               onClick={() => onSelect(s.id)}
               aria-current={active}
-              style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: '9px 34px 9px 11px', cursor: 'pointer', display: 'block' }}
+              style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: `9px ${active ? 58 : 34}px 9px 11px`, cursor: 'pointer', display: 'block' }}
             >
               <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: active ? '#1D4ED8' : '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {s.name}
@@ -184,6 +187,32 @@ function SummaryStrip({ summaries, activeId, priceOf, onSelect, onRename, onDupl
                 {money(priceOf(s))}
               </span>
             </button>
+
+            {/*
+              Edit Scope, as a square beside the summary it edits (client, 11 Aug
+              2026). It replaces a full-width labelled button that sat in the scope
+              band below — which read as an action on the screen rather than on one
+              summary, and cost a row of height to say so.
+
+              On the **active** card only. Scope editing applies to the selected
+              summary, so an icon on an unselected card would either edit the wrong
+              one or silently switch selection under the estimator; the card is the
+              thing you select, and once selected it carries the action.
+            */}
+            {active && (
+              <button
+                onClick={onEditScope}
+                aria-label={`Edit scope — ${s.name}`}
+                title={`Edit scope — ${s.name}. Choose the Bid Package, Areas and Systems inside this summary. Scope defines what is in the summary; it is not the bid itself.`}
+                style={{
+                  position: 'absolute', top: 6, right: 28, width: 22, height: 22,
+                  border: '1px solid #BFDBFE', borderRadius: 5, background: 'white',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <SlidersHorizontal size={11} color="#1D4ED8" />
+              </button>
+            )}
 
             <button
               onClick={() => setMenuFor(menuFor === s.id ? null : s.id)}
@@ -240,7 +269,7 @@ function SummaryStrip({ summaries, activeId, priceOf, onSelect, onRename, onDupl
  * The chips are a read-out; Edit Scope is where the selection actually happens.
  * Showing chips that look interactive but are not is the thing this had to avoid.
  */
-function SummaryScopeBand({ summary, onEdit }: { summary: BidSummary; onEdit: () => void }) {
+function SummaryScopeBand({ summary }: { summary: BidSummary }) {
   const sc = summary.scope;
 
   /*
@@ -290,15 +319,11 @@ function SummaryScopeBand({ summary, onEdit }: { summary: BidSummary; onEdit: ()
       {field('Areas', scopeAreaLabels(sc), 'neutral')}
       {field('Systems', scopeSystemLabels(sc), 'neutral')}
 
-      <span style={{ flex: 1, minWidth: 8 }} />
-
-      <button
-        onClick={onEdit}
-        title={`Choose the Bid Package, Areas and Systems inside ${summary.name}. Scope defines what is in this summary — it is not the bid itself.`}
-        style={{ height: 26, padding: '0 10px', border: '1px solid #BFDBFE', borderRadius: 7, background: 'white', fontSize: 11, fontWeight: 600, color: '#1D4ED8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
-      >
-        <SlidersHorizontal size={11} /> Edit Scope
-      </button>
+      {/*
+        No Edit button here any more — it moved onto the active summary card above,
+        beside the name it belongs to. This band is purely a read-out of what the
+        selected summary covers, which is what it was always meant to be.
+      */}
     </div>
   );
 }
@@ -1056,7 +1081,23 @@ function LaborCrewSection({ totalHours, rows, onRowsChange }: {
   const [template, setTemplate] = useState('retail-fitout');
   // Fringe columns start open when any role actually carries a fringe benefit.
   const [showFringe, setShowFringe] = useState(() => rows.some((r) => r.fringeDollars > 0));
-  const crew = computeCrew(rows, totalHours);
+
+  /*
+   * The labor profile is selectable and priced through (client, 11 Aug 2026).
+   *
+   * It was a static chip reading "NECA 2 · Union standard · set in Pricing" — a
+   * label describing a decision made on another screen, which an estimator could
+   * neither see the effect of nor change from where the crew rates are. Selecting
+   * a profile now re-bases the crew and every figure below follows.
+   *
+   * The rows themselves are untouched: the factor is applied on the way into
+   * `computeCrew`, so the base rates on record stay the base rates on record and
+   * switching back to NECA 2 restores them exactly.
+   */
+  const [profileId, setProfileId] = useLaborProfile();
+  const profile = laborProfile(profileId);
+  const pricedRows = applyLaborProfile(rows, profileId);
+  const crew = computeCrew(pricedRows, totalHours);
   const fringeInTotal = crew.lines.reduce(
     (s, l) => s + (l.included !== false ? (l.fringeDollars + l.fringeAmount) * l.hours : 0),
     0,
@@ -1104,10 +1145,30 @@ function LaborCrewSection({ totalHours, rows, onRowsChange }: {
       {/* Profile + template */}
       <div className="bp-toolbar" style={{ padding: '8px 14px', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA' }}>
         <span style={{ fontSize: 11, color: '#6B7280' }}>Labor profile</span>
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#374151', background: 'white', border: '1px solid #E5E7EB', padding: '3px 8px', borderRadius: 5 }}>
-          NECA 2 · Union standard
+        <select
+          value={profileId}
+          onChange={(e) => setProfileId(e.target.value)}
+          aria-label="Labor profile"
+          title="The published rate basis this estimate is priced on. Applies to every crew row below."
+          style={{
+            height: 26, padding: '0 6px', borderRadius: 5, fontSize: 11, outline: 'none',
+            border: `1px solid ${profileId === DEFAULT_LABOR_PROFILE ? '#E5E7EB' : '#BFDBFE'}`,
+            background: profileId === DEFAULT_LABOR_PROFILE ? 'white' : '#EFF6FF',
+            color: profileId === DEFAULT_LABOR_PROFILE ? '#374151' : '#1D4ED8',
+            fontWeight: 600,
+          }}
+        >
+          {LABOR_PROFILES.map((p) => (
+            <option key={p.id} value={p.id}>{p.label} · {p.desc}</option>
+          ))}
+        </select>
+        {/* The factor, stated. A profile that silently moves the money is worse
+            than no profile at all. */}
+        <span style={{ fontSize: 10, color: profile.rateFactor === 1 ? '#9CA3AF' : '#B45309' }}>
+          {profile.rateFactor === 1
+            ? 'base rates as entered'
+            : `base rates × ${profile.rateFactor.toFixed(2)}`}
         </span>
-        <span style={{ fontSize: 10, color: '#9CA3AF' }}>set in Pricing</span>
         <div style={{ flex: 1 }} />
         <label style={{ fontSize: 11, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
           <input
@@ -1187,7 +1248,17 @@ function LaborCrewSection({ totalHours, rows, onRowsChange }: {
           <span style={{ ...FIG, color: dim }}>{line.hours.toFixed(2)} h</span>
 
           {/* Base rate, then burden — a percentage and the dollars it comes to. */}
-          <RateInput value={line.baseRate} onChange={(v) => update(line.id, { baseRate: v })} prefix="$" />
+          {/*
+            Bound to the row's **own** base rate, not the profile-scaled one that
+            `crew.lines` carries. Showing the scaled figure here would let an edit
+            write it back as the new base rate and bake the factor in permanently —
+            the profile is a lens over the rates, never an edit to them.
+          */}
+          <RateInput
+            value={rows.find((r) => r.id === line.id)?.baseRate ?? line.baseRate}
+            onChange={(v) => update(line.id, { baseRate: v })}
+            prefix="$"
+          />
           <RateInput
             value={line.burdenPct} onChange={(v) => update(line.id, { burdenPct: v })} suffix="%"
             title="Payroll taxes, workers' comp and unemployment — charged on the base rate only"
@@ -1671,9 +1742,23 @@ export function BidBuilder({ onNavigateTo, onBack, projectStatus, onStatusChange
    * is always on screen, so labor cannot wait for its own tab to mount before
    * it counts.
    */
+  /*
+   * The crew as the selected labor profile prices it.
+   *
+   * Derived once and used by every consumer below, so the Labor section's own
+   * total and the bid's labor cost cannot be computed on different rate bases —
+   * a profile that changed one panel and not the sell price would be worse than
+   * the static label it replaced.
+   */
+  const [bidLaborProfile] = useLaborProfile();
+  const pricedCrewRows = useMemo(
+    () => applyLaborProfile(crewRows, bidLaborProfile),
+    [crewRows, bidLaborProfile],
+  );
+
   const laborCost = useMemo(
-    () => computeCrew(crewRows, TAKEOFF_LABOR_HOURS).costTotal,
-    [crewRows],
+    () => computeCrew(pricedCrewRows, TAKEOFF_LABOR_HOURS).costTotal,
+    [pricedCrewRows],
   );
 
   /**
@@ -1780,7 +1865,7 @@ export function BidBuilder({ onNavigateTo, onBack, projectStatus, onStatusChange
     const sc = scopedCosts(scopeSource, scopeSelectionOf(sum));
     const inc = (id: CostCategoryId, v: number) => (sum.scope.includes.includes(id) ? v : 0);
     const hours = TAKEOFF_LABOR_HOURS * sc.laborShare;
-    const scopedLabor = computeCrew(crewRows, hours).costTotal;
+    const scopedLabor = computeCrew(pricedCrewRows, hours).costTotal;
     const totals = computeBid({
       materialCost: inc('material', sc.materialCost),
       laborCost: inc('labor', scopedLabor),
@@ -1794,7 +1879,7 @@ export function BidBuilder({ onNavigateTo, onBack, projectStatus, onStatusChange
     }, markup, sum.rates, sum.tax);
     return { totals, laborHours: sum.scope.includes.includes('labor') ? hours : 0 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeSource, crewRows, expensesCost, equipmentCost, bondCost, squareFeet, markup]);
+  }, [scopeSource, pricedCrewRows, expensesCost, equipmentCost, bondCost, squareFeet, markup]);
 
   /** Every summary, priced. One computation each, read by every consumer. */
   const pricedSummaries: PricedSummary[] = useMemo(
@@ -2075,12 +2160,13 @@ export function BidBuilder({ onNavigateTo, onBack, projectStatus, onStatusChange
                 activeId={activeSummary.id}
                 priceOf={(sum) => pricedSummaries.find((x) => x.summary.id === sum.id)?.totals.totalBid ?? 0}
                 onSelect={setActiveSummaryId}
+                onEditScope={() => setEditScopeOpen(true)}
                 onRename={handleRenameSummary}
                 onDuplicate={handleDuplicateSummary}
                 onDelete={handleDeleteSummary}
               />
 
-              <SummaryScopeBand summary={activeSummary} onEdit={() => setEditScopeOpen(true)} />
+              <SummaryScopeBand summary={activeSummary} />
 
               <TopSheet
                 summaryName={activeSummary.name}
