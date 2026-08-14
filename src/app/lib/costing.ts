@@ -379,7 +379,7 @@ export interface CrewRow {
   fringePct: number;
   /**
    * Whether the role reaches the bid. Absent means included — existing callers
-   * that never set it keep the behaviour they had.
+   * that never set it keep the behavior they had.
    */
   included?: boolean;
 }
@@ -553,11 +553,42 @@ export function applyLaborProfile<T extends { baseRate: number }>(rows: T[], id:
 }
 
 /**
- * The company's default blended labour rate, in dollars per hour.
+ * The crew a new project starts from.
  *
- * Derived from the default crew template rather than typed as its own constant,
- * so a Parts Library labour cost and a bid's labour cost can never quote
- * different money for the same hour. Change the template and both move.
+ * Set from the Bid Builder's Labor tab — "Set as default" writes whatever the
+ * estimator has built. Held in a module store rather than typed as a constant so
+ * the change reaches projects opened afterwards in the same session, which is
+ * what a default means without a backend.
+ *
+ * **Existing projects are never touched.** A default is where a bid starts, not
+ * a rate it is held to; a project that has already priced its crew must not have
+ * that rewritten because someone saved a default on another job.
+ */
+let defaultCrew: CrewRow[] = CREW_TEMPLATES[0].rows.map((r, i) => ({ ...r, id: `crew-default-${i}` }));
+const defaultCrewListeners = new Set<() => void>();
+
+export function getDefaultCrew(): CrewRow[] {
+  return defaultCrew;
+}
+
+export function setDefaultCrew(rows: CrewRow[]) {
+  // Copied, and re-keyed: sharing row objects with the project that saved them
+  // would let a later edit there mutate the default from a distance.
+  defaultCrew = rows.map((r, i) => ({ ...r, id: `crew-default-${i}` }));
+  for (const l of defaultCrewListeners) l();
+}
+
+export function onDefaultCrewChange(fn: () => void): () => void {
+  defaultCrewListeners.add(fn);
+  return () => { defaultCrewListeners.delete(fn); };
+}
+
+/**
+ * The company's default blended labor rate, in dollars per hour.
+ *
+ * Derived from the default crew rather than typed as its own constant, so a
+ * Parts Library labor cost and a bid's labor cost can never quote different
+ * money for the same hour.
  */
 export const COMPANY_LABOR_RATE: number = computeCrew(
   CREW_TEMPLATES[0].rows.map((r, i) => ({ ...r, id: `default-crew-${i}` })),

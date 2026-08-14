@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   ChevronDown, ChevronRight, ChevronUp, AlertTriangle, Sparkles,
   Plus, Trash2, ArrowRight, X, RotateCcw, Info, Users,
-  ShieldCheck, Layers, MoreHorizontal, SlidersHorizontal,
+  ShieldCheck, Layers, MoreHorizontal, SlidersHorizontal, Save,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProjectHeader } from '../projects/ProjectHeader';
@@ -10,7 +10,7 @@ import { ValidationReview } from '../common/ValidationReview';
 import { validate, isBlocked, countBySeverity, ValidationIssue } from '../../lib/validation';
 import {
   MarkupKey, MarkupOverrides, MARKUP_FIELDS, COMPANY_DEFAULTS, effectiveMarkup, isInherited,
-  computeBid, BidTotals, CrewRow, CREW_ROLES, CREW_TEMPLATES, computeCrew,
+  computeBid, BidTotals, CrewRow, CREW_ROLES, computeCrew, getDefaultCrew, setDefaultCrew,
   CostCategoryId, CategoryRateMap, CategoryLine, TaxSettings, DEFAULT_TAX_SETTINGS,
   COST_CATEGORIES,
   money, pct,
@@ -46,7 +46,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type SectionType = 'material' | 'labour';
+type SectionType = 'material' | 'labor';
 type Discipline = 'lighting' | 'power' | 'fire-alarm' | 'data' | 'safety' | 'general';
 
 interface LineItem {
@@ -122,7 +122,7 @@ const INIT_SECTIONS: Section[] = [
 ];
 
 const HEALTH_ISSUES: HealthIssue[] = [
-  { type: 'error',   message: '1 item is missing a unit price — material total may be understated.', action: 'Go to Pricing' },
+  { type: 'error',   message: '1 item is missing a unit price — material total may be understated.', action: 'Go to Extensions' },
   { type: 'warning', message: '2 items have stale pricing (>90 days). Consider refreshing.', action: 'Refresh prices' },
   { type: 'warning', message: 'AI suggested smoke detectors are in the bid but unapproved — review before submitting.', action: 'Review AI items' },
   { type: 'info',    message: 'Contingency is below company baseline of 5%.', action: 'View policy' },
@@ -1078,7 +1078,6 @@ function LaborCrewSection({ totalHours, rows, onRowsChange }: {
   rows: CrewRow[];
   onRowsChange: (rows: CrewRow[]) => void;
 }) {
-  const [template, setTemplate] = useState('retail-fitout');
   // Fringe columns start open when any role actually carries a fringe benefit.
   const [showFringe, setShowFringe] = useState(() => rows.some((r) => r.fringeDollars > 0));
 
@@ -1107,14 +1106,6 @@ function LaborCrewSection({ totalHours, rows, onRowsChange }: {
     onRowsChange(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
 
-  function applyTemplate(id: string) {
-    const t = CREW_TEMPLATES.find((x) => x.id === id);
-    if (!t) return;
-    setTemplate(id);
-    onRowsChange(t.rows.map((r, i) => ({ ...r, id: `crew-${id}-${i}` })));
-    setShowFringe(t.rows.some((r) => r.fringeDollars > 0));
-    toast.success('Crew template applied', { description: `${t.name} — allocation reset to 100%.` });
-  }
 
   /*
    * Fixed tracks, not minmax: a header grid and a row grid are separate
@@ -1142,7 +1133,7 @@ function LaborCrewSection({ totalHours, rows, onRowsChange }: {
       meta={`${rows.filter((r) => r.included !== false).length} of ${rows.length} crew roles in bid · ${totalHours.toFixed(2)} h · ${money(crew.blendedRate)}/h blended`}
       total={money(crew.costTotal)}
     >
-      {/* Profile + template */}
+      {/* Profile + defaults */}
       <div className="bp-toolbar" style={{ padding: '8px 14px', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA' }}>
         <span style={{ fontSize: 11, color: '#6B7280' }}>Labor profile</span>
         <select
@@ -1184,14 +1175,29 @@ function LaborCrewSection({ totalHours, rows, onRowsChange }: {
             {money(fringeInTotal)} fringe still in total
           </span>
         )}
-        <span style={{ fontSize: 11, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}><Users size={11} /> Crew template</span>
-        <select
-          value={template}
-          onChange={(e) => applyTemplate(e.target.value)}
-          style={{ height: 26, padding: '0 6px', border: '1px solid #E5E7EB', borderRadius: 5, fontSize: 11, background: 'white', outline: 'none', color: '#374151' }}
+        <div style={{ flex: 1, minWidth: 8 }} />
+
+        {/*
+          Save as default.
+          --------------
+          The crew an estimator builds here is nearly the same on the next job, and
+          retyping four roles and their burden every time is the tedium this removes.
+          Writes the current crew to the company default, which new projects start
+          from — and which they can still change, because a default is a starting
+          point and not a policy.
+        */}
+        <button
+          onClick={() => {
+            setDefaultCrew(rows);
+            toast.success('Saved as the company default crew', {
+              description: `${rows.length} role${rows.length === 1 ? '' : 's'} — new projects will start from this. Existing projects are unchanged, and any project can override it.`,
+            });
+          }}
+          title="New projects start from this crew. Existing projects are untouched and can still override it."
+          style={{ height: 26, padding: '0 10px', border: '1px solid #BFDBFE', borderRadius: 6, background: 'white', fontSize: 11, fontWeight: 600, color: '#1D4ED8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
         >
-          {CREW_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
+          <Save size={11} /> Set as default
+        </button>
       </div>
 
       {/* Allocation warning */}
@@ -1432,7 +1438,7 @@ function BidSummaryHeader({ totals, status, issueCount, blocked, onValidate, exc
 }) {
   const statusCfg: Record<string, { label: string; color: string; bg: string; border: string }> = {
     takeoff:  { label: 'Takeoff in progress', color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
-    pricing:  { label: 'Pricing required',    color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
+    pricing:  { label: 'Extensions required',    color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
     bidding:  { label: 'Bid in progress',     color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE' },
     won:      { label: 'Won',                 color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0' },
     lost:     { label: 'Lost',                color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
@@ -1702,9 +1708,10 @@ export function BidBuilder({ onNavigateTo, onBack, projectStatus, onStatusChange
     });
   };
 
-  // Crew allocation, seeded from the default company template.
+  /* Seeded from the company default crew — what "Set as default" on the Labor tab
+     writes. A project may then take it anywhere without affecting the default. */
   const [crewRows, setCrewRows] = useState<CrewRow[]>(
-    CREW_TEMPLATES[0].rows.map((r, i) => ({ ...r, id: `crew-init-${i}` })),
+    getDefaultCrew().map((r, i) => ({ ...r, id: `crew-init-${i}` })),
   );
   // Cost categories.
   const [quotes, setQuotes] = useState<QuoteRow[]>(SEED_QUOTE_ROWS);
@@ -1780,7 +1787,7 @@ export function BidBuilder({ onNavigateTo, onBack, projectStatus, onStatusChange
             system: line ? SYSTEM_BY_GROUP[line.system] ?? null : null,
           },
           cost: i.extCost,
-          hours: line?.totalLabourHrs ?? 0,
+          hours: line?.totalLaborHrs ?? 0,
         };
       }),
     quotes: quotes.filter((q) => q.included).map((q) => ({
@@ -2093,7 +2100,7 @@ export function BidBuilder({ onNavigateTo, onBack, projectStatus, onStatusChange
   }), [pendingAi, markup.contingency]);
 
   function handleHealthAction(action: string) {
-    if (action === 'Go to Pricing') { onNavigateTo?.('pricing'); return; }
+    if (action === 'Go to Extensions') { onNavigateTo?.('pricing'); return; }
     if (action === 'Refresh prices') { toast.success('Prices refreshed', { description: '2 stale items re-priced from the company price book.' }); return; }
     if (action === 'Review AI items') { approveAiItems(); return; }
     toast.info('Company markup policy', { description: `Contingency baseline is ${COMPANY_DEFAULTS.contingency}% — set in Settings → Markup & pricing.` });

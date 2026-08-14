@@ -46,7 +46,7 @@ const PIPELINE_DATA = [
 
 const STATUS_BAR_DATA = [
   { label: "Takeoff", value: 4, color: "#3B82F6" },
-  { label: "Pricing", value: 3, color: "#D97706" },
+  { label: "Extensions", value: 3, color: "#D97706" },
   { label: "Review", value: 2, color: "#7C3AED" },
   { label: "Submitted", value: 8, color: "#6B7280" },
   { label: "Won", value: 5, color: "#16A34A" },
@@ -87,7 +87,7 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> =
   draft: { label: "Draft", color: "#6B7280", bg: "#F3F4F6" },
   drawings: { label: "Processing", color: "#2563EB", bg: "#EFF6FF" },
   takeoff: { label: "Takeoff", color: "#7C3AED", bg: "#F5F3FF" },
-  pricing: { label: "Pricing req.", color: "#D97706", bg: "#FFFBEB" },
+  pricing: { label: "Extensions req.", color: "#D97706", bg: "#FFFBEB" },
   review: { label: "In review", color: "#2563EB", bg: "#EFF6FF" },
   submitted: { label: "Submitted", color: "#6B7280", bg: "#F3F4F6" },
   won: { label: "Won", color: "#16A34A", bg: "#F0FDF4" },

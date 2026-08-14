@@ -11,8 +11,8 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ReportType =
-  | 'bid-pipeline' | 'bom' | 'labour' | 'cost-summary'
-  | 'win-loss' | 'margin-analysis' | 'material-spend' | 'labour-productivity'
+  | 'bid-pipeline' | 'bom' | 'labor' | 'cost-summary'
+  | 'win-loss' | 'margin-analysis' | 'material-spend' | 'labor-productivity'
   | 'project-cashflow' | 'supplier-performance' | 'team-workload'
   | 'estimate-accuracy' | 'quote-conversion' | 'tax-summary' | 'executive';
 
@@ -32,11 +32,11 @@ const REPORTS: ReportDef[] = [
   { id: 'quote-conversion',    label: 'Quote conversion',      description: 'Quote-to-win funnel with conversion rate over time.', icon: <TrendingUp size={14} />, category: 'Sales' },
   { id: 'executive',           label: 'Executive summary',     description: 'High-level KPIs: revenue, margin, pipeline.', icon: <BarChart2 size={14} />, category: 'Sales' },
   { id: 'bom',                 label: 'Bill of materials',     description: 'Full BOM for a project or estimate with quantities and unit prices.', icon: <Package size={14} />, category: 'Estimating' },
-  { id: 'cost-summary',        label: 'Cost summary',          description: 'Material, labour, direct costs, and margin breakdown per project.', icon: <DollarSign size={14} />, category: 'Estimating' },
+  { id: 'cost-summary',        label: 'Cost summary',          description: 'Material, labor, direct costs, and margin breakdown per project.', icon: <DollarSign size={14} />, category: 'Estimating' },
   { id: 'margin-analysis',     label: 'Margin analysis',       description: 'Gross and net margin by project, client, or discipline.', icon: <TrendingDown size={14} />, category: 'Estimating' },
   { id: 'estimate-accuracy',   label: 'Estimate accuracy',     description: 'Estimated vs. actual cost variance across completed projects.', icon: <BarChart2 size={14} />, category: 'Estimating' },
-  { id: 'labour',              label: 'Labor report',          description: 'Hours by crew type, project, and task with productivity ratios.', icon: <Clock size={14} />, category: 'Labor' },
-  { id: 'labour-productivity', label: 'Labor productivity',    description: 'Hours per unit vs. standard rates by assembly type.', icon: <TrendingUp size={14} />, category: 'Labor' },
+  { id: 'labor',              label: 'Labor report',          description: 'Hours by crew type, project, and task with productivity ratios.', icon: <Clock size={14} />, category: 'Labor' },
+  { id: 'labor-productivity', label: 'Labor productivity',    description: 'Hours per unit vs. standard rates by assembly type.', icon: <TrendingUp size={14} />, category: 'Labor' },
   { id: 'team-workload',       label: 'Team workload',         description: 'Estimated vs. scheduled hours by team member.', icon: <Users size={14} />, category: 'Labor' },
   { id: 'material-spend',      label: 'Material spend',        description: 'Material purchases by supplier, category, and period.', icon: <Package size={14} />, category: 'Procurement' },
   { id: 'supplier-performance',label: 'Supplier performance',  description: 'Supplier pricing accuracy, lead times, and quote turnaround.', icon: <BarChart2 size={14} />, category: 'Procurement' },
@@ -56,11 +56,11 @@ const PIPELINE_DATA = [
 ];
 
 const MARGIN_DATA = [
-  { name: 'Dollar Tree', material: 44, labour: 31, overhead: 12, profit: 13 },
-  { name: 'Shopify HQ', material: 38, labour: 35, overhead: 12, profit: 15 },
-  { name: 'RBC Branch', material: 51, labour: 26, overhead: 12, profit: 11 },
-  { name: 'IKEA TI',    material: 42, labour: 32, overhead: 12, profit: 14 },
-  { name: 'Desjardins', material: 35, labour: 38, overhead: 12, profit: 15 },
+  { name: 'Dollar Tree', material: 44, labor: 31, overhead: 12, profit: 13 },
+  { name: 'Shopify HQ', material: 38, labor: 35, overhead: 12, profit: 15 },
+  { name: 'RBC Branch', material: 51, labor: 26, overhead: 12, profit: 11 },
+  { name: 'IKEA TI',    material: 42, labor: 32, overhead: 12, profit: 14 },
+  { name: 'Desjardins', material: 35, labor: 38, overhead: 12, profit: 15 },
 ];
 
 const WIN_LOSS_DATA = [
@@ -76,7 +76,7 @@ const CASHFLOW_DATA = [
   { month: 'Jul', invoiced: 54000, received: 38000, outstanding: 70000 },
 ];
 
-const LABOUR_DATA = [
+const LABOR_DATA = [
   { week: 'W25', estimated: 180, actual: 188 },
   { week: 'W26', estimated: 240, actual: 228 },
   { week: 'W27', estimated: 195, actual: 210 },
@@ -234,7 +234,7 @@ function WinLossReport() {
   );
 }
 
-function LabourReport() {
+function LaborReport() {
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
@@ -246,7 +246,7 @@ function LabourReport() {
       <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: 10, padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 14 }}>Estimated vs. actual hours (weekly)</div>
         <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={LABOUR_DATA}>
+          <LineChart data={LABOR_DATA}>
             <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
             <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
@@ -279,7 +279,7 @@ function MarginReport() {
             <Tooltip contentStyle={{ fontSize: 11, borderRadius: 6 }} />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
             <Bar key="material" dataKey="material" name="Material" fill="#BFDBFE" stackId="a" />
-            <Bar key="labour"   dataKey="labour"   name="Labor"    fill="#BBF7D0" stackId="a" />
+            <Bar key="labor"   dataKey="labor"   name="Labor"    fill="#BBF7D0" stackId="a" />
             <Bar key="overhead" dataKey="overhead" name="Overhead" fill="#FDE68A" stackId="a" />
             <Bar key="profit"   dataKey="profit"   name="Profit"   fill="#16A34A" stackId="a" radius={[0, 4, 4, 0]} />
           </BarChart>
@@ -317,7 +317,7 @@ export function ReportsView() {
     switch (activeReport) {
       case 'bid-pipeline': return <BidPipelineReport />;
       case 'win-loss':     return <WinLossReport />;
-      case 'labour':       return <LabourReport />;
+      case 'labor':       return <LaborReport />;
       case 'margin-analysis': return <MarginReport />;
       default: return <GenericReport report={report} />;
     }

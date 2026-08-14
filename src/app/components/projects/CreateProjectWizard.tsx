@@ -320,7 +320,7 @@ export function CreateProjectWizard({ onComplete, onCancel }: CreateProjectWizar
                   <select defaultValue="draft" style={selectStyle}>
                     <option value="draft">Draft</option>
                     <option value="takeoff">Takeoff in progress</option>
-                    <option value="pricing">Pricing required</option>
+                    <option value="pricing">Extensions required</option>
                   </select>
                 </Field>
               </div>
@@ -335,7 +335,7 @@ export function CreateProjectWizard({ onComplete, onCancel }: CreateProjectWizar
                     <option value="education">Education</option>
                     <option value="residential">Residential</option>
                     <option value="infrastructure">Infrastructure</option>
-                    <option value="data-centre">Data centre</option>
+                    <option value="data-center">Data center</option>
                   </select>
                 </Field>
                 <Field label="Construction type">

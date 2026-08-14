@@ -22,11 +22,23 @@ import { addRecord } from '../../lib/takeoffRecords';
  * classification. Reimplementing the browser here would have guaranteed the two
  * drift apart and forced the estimator to learn both.
  */
-export function ManualTakeoffPanel({ activeCls, groups, onRecorded }: {
+export function ManualTakeoffPanel({ activeCls, groups, onRecorded, askQuantity }: {
   /** The active classification bar's context — inherited by everything added. */
   activeCls: Classification;
   groups: CategoryGroup[];
   onRecorded: (name: string, qty: number) => void;
+  /**
+   * Confirms how many, before the record is written.
+   *
+   * Supplied by the workspace so a manual add asks the same question here and on a
+   * drag into the Takeoff List — one prompt, one default, one place to change it.
+   * The `+` beside a part passes a quantity of 1 it never asked the estimator for;
+   * this is where that assumption gets checked.
+   */
+  askQuantity: (
+    target: { name: string; code?: string; measurementType?: 'count' | 'linear'; unit?: string },
+    commit: (qty: number) => void,
+  ) => void;
 }) {
   const [libraries] = useState<Library[]>(LIBRARIES);
   const [activeLibId, setActiveLibId] = useState('dollartree');
@@ -68,37 +80,49 @@ export function ManualTakeoffPanel({ activeCls, groups, onRecorded }: {
           libraries={libraries}
           takeoffMode={{
             classificationLabel: classificationLabel(groups, activeCls),
-            onAddAssembly: (asm: Assembly, qty: number) => {
+            onAddAssembly: (asm: Assembly, stated?: number) => {
               const measure = defaultMeasureType(
                 categoryOf(asm),
                 `${asm.subcat ?? ''} ${asm.type ?? ''} ${asm.name}`,
               );
-              addRecord({
-                sourceType: 'manual',
-                assemblyId: asm.id,
-                name: asm.name,
-                code: asm.code,
-                unit: measure === 'linear' ? 'LF' : 'EA',
-                measurementType: measure,
-                quantity: measure === 'linear' ? 1 : qty,
-                measuredLength: measure === 'linear' ? qty : undefined,
-                classification: { ...activeCls },
-              });
-              onRecorded(asm.name, qty);
+              const unit = measure === 'linear' ? 'LF' : 'EA';
+              const write = (qty: number) => {
+                addRecord({
+                  sourceType: 'manual',
+                  assemblyId: asm.id,
+                  name: asm.name,
+                  code: asm.code,
+                  unit,
+                  measurementType: measure,
+                  quantity: measure === 'linear' ? 1 : qty,
+                  measuredLength: measure === 'linear' ? qty : undefined,
+                  classification: { ...activeCls },
+                });
+                onRecorded(asm.name, qty);
+              };
+              /* Asked already in the BOM footer? Honor it. Asking twice for the same
+                 number is worse than never asking. */
+              if (stated && stated > 0) write(stated);
+              else askQuantity({ name: asm.name, code: asm.code, measurementType: measure, unit }, write);
             },
-            onAddPart: (part: Part, qty: number) => {
-              addRecord({
-                sourceType: 'manual',
-                partId: part.id,
-                name: part.name,
-                code: part.code,
-                unit: part.unit,
-                measurementType: part.unit === 'LF' ? 'linear' : 'count',
-                quantity: part.unit === 'LF' ? 1 : qty,
-                measuredLength: part.unit === 'LF' ? qty : undefined,
-                classification: { ...activeCls },
-              });
-              onRecorded(part.name, qty);
+            onAddPart: (part: Part, stated?: number) => {
+              const measure = part.unit === 'LF' ? 'linear' : 'count';
+              const write = (qty: number) => {
+                addRecord({
+                  sourceType: 'manual',
+                  partId: part.id,
+                  name: part.name,
+                  code: part.code,
+                  unit: part.unit,
+                  measurementType: measure,
+                  quantity: measure === 'linear' ? 1 : qty,
+                  measuredLength: measure === 'linear' ? qty : undefined,
+                  classification: { ...activeCls },
+                });
+                onRecorded(part.name, qty);
+              };
+              if (stated && stated > 0) write(stated);
+              else askQuantity({ name: part.name, code: part.code, measurementType: measure, unit: part.unit }, write);
             },
           }}
           />

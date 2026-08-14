@@ -452,7 +452,7 @@ function SupplierImportDrawer({ onClose }: { onClose: () => void }) {
 
 /**
  * Every pricing bucket is a collapsible section with its total in the header, so
- * the screen reads as an organised recap rather than one flat list of lines.
+ * the screen reads as an organized recap rather than one flat list of lines.
  */
 function CostSection({ title, total, meta, accent, bg, border, defaultOpen = false, children }: {
   title: string; total: string; meta?: string;
@@ -728,7 +728,7 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden', background: '#F6F7F9' }}>
       <ProjectHeader
-        activeTab="Pricing"
+        activeTab="Extensions"
         onNavigateTab={onNavigateTo}
         onBack={onBack}
         projectStatus={projectStatus}
@@ -776,7 +776,7 @@ export function PricingWorkspace({ onNavigateTo, onBack, projectStatus, onStatus
           <Download size={12} /> Supplier import
         </button>
         <button
-          onClick={() => toast.success('Export started', { description: 'Pricing sheet will download as CSV.' })}
+          onClick={() => toast.success('Export started', { description: 'Extensions sheet will download as CSV.' })}
           style={{ height: 34, padding: '0 12px', border: '1px solid #E5E7EB', borderRadius: 8, background: 'white', fontSize: 12, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
         >
           <Upload size={12} /> Export

@@ -806,7 +806,7 @@ export function TakeoffListPanel({
       <span style={{ fontFamily: MONO }}>Count total <strong style={{ color: '#111827' }}>{totals.count}</strong></span>
       <span style={{ fontFamily: MONO }}>Linear total <strong style={{ color: '#111827' }}>{totals.linear} LF</strong></span>
       <div style={{ flex: 1 }} />
-      <span style={{ color: '#9CA3AF' }}>Adjusted figures are what carry forward to Pricing.</span>
+      <span style={{ color: '#9CA3AF' }}>Adjusted figures are what carry forward to Extensions.</span>
     </div>
   );
 

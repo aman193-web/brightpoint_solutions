@@ -126,19 +126,19 @@ export interface Part {
   /** BOM group a part lands in when added to an assembly. */
   bomGroup: string;
   /**
-   * Labour class for installing one unit, and the hours it takes.
+   * Labor class for installing one unit, and the hours it takes.
    *
-   * Optional because the catalogue is large and most parts fall squarely into a
+   * Optional because the catalog is large and most parts fall squarely into a
    * class their BOM group already implies — `laborTypeOf` derives it. Set
    * explicitly only where a part genuinely differs from its group, so a change to
    * the group's default still reaches everything that never needed an exception.
    */
   laborType?: LaborType;
-  /** Hours per unit. Absent means take the labour type's standard. */
+  /** Hours per unit. Absent means take the labor type's standard. */
   laborUnit?: number;
   /** Where this price came from. Absent derives from the category. */
   pricingSource?: PricingSource;
-  /** Which labour-unit column the hours are read from. Absent means NECA 2. */
+  /** Which labor-unit column the hours are read from. Absent means NECA 2. */
   laborRateSource?: LaborRateSource;
 }
 
@@ -146,16 +146,16 @@ export interface Part {
 
 /**
  * Where a price actually came from — the first thing an estimator checks before
- * trusting a number, and the reason a stale catalogue price and a quote received
+ * trusting a number, and the reason a stale catalog price and a quote received
  * this morning must not look alike in the table.
  */
 export type PricingSource =
   | 'Supplier quote' | 'Trade price list' | 'Manufacturer list'
-  | 'Brightpoint catalogue' | 'Manual entry';
+  | 'Brightpoint catalog' | 'Manual entry';
 
 export const PRICING_SOURCES: PricingSource[] = [
   'Supplier quote', 'Trade price list', 'Manufacturer list',
-  'Brightpoint catalogue', 'Manual entry',
+  'Brightpoint catalog', 'Manual entry',
 ];
 
 /**
@@ -163,7 +163,7 @@ export const PRICING_SOURCES: PricingSource[] = [
  *
  * Commodity material is requoted constantly, so wire and conduit sit on a
  * supplier quote; fixtures and fire alarm heads are bought against a
- * manufacturer's list; small hardware nobody quotes stays on the catalogue.
+ * manufacturer's list; small hardware nobody quotes stays on the catalog.
  * A per-part `pricingSource` overrides this.
  */
 const PRICING_BY_CATEGORY: Record<string, PricingSource> = {
@@ -173,18 +173,18 @@ const PRICING_BY_CATEGORY: Record<string, PricingSource> = {
   'Fire Alarm':          'Manufacturer list',
   Devices:               'Trade price list',
   'Boxes & Covers':      'Trade price list',
-  'Hangers & Supports':  'Brightpoint catalogue',
-  Fasteners:             'Brightpoint catalogue',
+  'Hangers & Supports':  'Brightpoint catalog',
+  Fasteners:             'Brightpoint catalog',
 };
 
 export function pricingSourceOf(p: Part): PricingSource {
-  return p.pricingSource ?? PRICING_BY_CATEGORY[p.cat] ?? 'Brightpoint catalogue';
+  return p.pricingSource ?? PRICING_BY_CATEGORY[p.cat] ?? 'Brightpoint catalog';
 }
 
-// ─── Labour rate source ───────────────────────────────────────────────────────
+// ─── Labor rate source ───────────────────────────────────────────────────────
 
 /**
- * Which published labour-unit column a part's hours are read from.
+ * Which published labor-unit column a part's hours are read from.
  *
  * The NECA columns are *installation conditions*, not prices: column 1 is the
  * easiest run, column 3 the hardest (height, congestion, existing building).
@@ -215,21 +215,21 @@ export function laborRateSourceOf(p: Part): LaborRateSource {
 }
 
 /**
- * How a part is installed, in the terms an estimator prices labour in.
+ * How a part is installed, in the terms an estimator prices labor in.
  *
  * Deliberately about the *work*, not the material: a troffer and a wall pack are
  * both "Fixture install" because that is what the hours are drawn from.
  */
 export type LaborType =
   | 'Fixture install' | 'Device trim' | 'Wire pull' | 'Raceway run'
-  | 'Termination' | 'Equipment set' | 'Hardware' | 'No labour';
+  | 'Termination' | 'Equipment set' | 'Hardware' | 'No labor';
 
 export const LABOR_TYPES: LaborType[] = [
   'Fixture install', 'Device trim', 'Wire pull', 'Raceway run',
-  'Termination', 'Equipment set', 'Hardware', 'No labour',
+  'Termination', 'Equipment set', 'Hardware', 'No labor',
 ];
 
-/** Standard hours per unit for a labour class. The per-part override wins. */
+/** Standard hours per unit for a labor class. The per-part override wins. */
 export const LABOR_STANDARD: Record<LaborType, number> = {
   'Fixture install': 0.80,
   'Device trim':     0.45,
@@ -238,10 +238,10 @@ export const LABOR_STANDARD: Record<LaborType, number> = {
   Termination:       0.12,
   'Equipment set':   2.50,
   Hardware:          0.05,
-  'No labour':       0,
+  'No labor':       0,
 };
 
-/** BOM group → labour class. The derivation every part falls back to. */
+/** BOM group → labor class. The derivation every part falls back to. */
 const LABOR_BY_BOM_GROUP: Record<string, LaborType> = {
   Fixture: 'Fixture install',
   Emergency: 'Fixture install',
@@ -257,7 +257,7 @@ const LABOR_BY_BOM_GROUP: Record<string, LaborType> = {
 };
 
 /**
- * Part category → labour class, consulted before the BOM group.
+ * Part category → labor class, consulted before the BOM group.
  *
  * The BOM group answers "where does this sit in a bill of materials", which is
  * not always the same question as "how is it installed". A 0-10V control wire is
@@ -279,7 +279,7 @@ export function laborTypeOf(p: Part): LaborType {
  *
  * An explicit `laborUnit` is the estimator's own figure and wins outright,
  * including a deliberate 0 — which is why this is `??` and not `||`. Otherwise
- * the labour class's standard is read through the part's rate source, so
+ * the labor class's standard is read through the part's rate source, so
  * switching a part to NECA 3 moves its hours the way the book says it should.
  */
 export function laborHoursOf(p: Part): number {
@@ -288,7 +288,7 @@ export function laborHoursOf(p: Part): number {
   return Math.round(std * LABOR_SOURCE_FACTOR[laborRateSourceOf(p)] * 1000) / 1000;
 }
 
-/** Installed labour cost for one unit, at a given loaded crew rate. */
+/** Installed labor cost for one unit, at a given loaded crew rate. */
 export function laborCostOf(p: Part, loadedRate: number): number {
   return laborHoursOf(p) * loadedRate;
 }
@@ -296,7 +296,7 @@ export function laborCostOf(p: Part, loadedRate: number): number {
 // ─── Recency ──────────────────────────────────────────────────────────────────
 
 /**
- * How recently a part entered the catalogue — higher is newer.
+ * How recently a part entered the catalog — higher is newer.
  *
  * Position in `MASTER_PARTS` is the record of when a part was added: entries are
  * appended, so the tail is the newest. Defined here rather than in each list so
@@ -319,7 +319,7 @@ function partOrderMap(): Map<string, number> {
 
 export function partRecency(p: Part): number {
   const i = partOrderMap().get(p.id);
-  /* Not in the catalogue means a part this company added, which is newer than
+  /* Not in the catalog means a part this company added, which is newer than
      anything shipped with the product. */
   return i === undefined ? Number.MAX_SAFE_INTEGER : i;
 }
@@ -397,7 +397,7 @@ export const MASTER_PARTS: Part[] = [
   { id: 'pt-46', name: 'Smoke Detector Ceiling Mount',   code: 'FA-SMOKE',     cat: 'Fire Alarm',         subcat: 'Devices',         mfr: 'Notifier',       unit: 'EA', price: 52.00, bomGroup: 'Device' },
   { id: 'pt-47', name: 'FPLR Fire Alarm Cable 18/2',     code: 'FA-CBL-182',   cat: 'Fire Alarm',         subcat: 'Wire',            mfr: 'Genesis',        unit: 'LF', price: 0.58,  bomGroup: 'Wiring' },
 
-  // ── Second batch: backs the codes the wider assembly catalogue references ──
+  // ── Second batch: backs the codes the wider assembly catalog references ──
   { id: 'pt-48', name: '1" EMT Conduit 10 ft',            code: 'EMT-100-10',  cat: 'Raceway & Fittings', subcat: 'EMT',             mfr: 'Allied',         unit: 'EA', price: 13.60, bomGroup: 'Raceway' },
   { id: 'pt-49', name: '2" EMT Conduit 10 ft',            code: 'EMT-200-10',  cat: 'Raceway & Fittings', subcat: 'EMT',             mfr: 'Allied',         unit: 'EA', price: 31.40, bomGroup: 'Raceway' },
   { id: 'pt-50', name: '1" EMT Coupling',                 code: 'EMT-CPL-100', cat: 'Raceway & Fittings', subcat: 'EMT',             mfr: 'Thomas & Betts', unit: 'EA', price: 0.94,  bomGroup: 'Raceway' },
@@ -515,7 +515,7 @@ export const ASSEMBLY_TYPES: Record<string, string[]> = {
   // BPC-02 Devices
   'BPC-02/Receptacles':         ['Duplex 20A', 'GFCI 20A', 'Hospital Grade', 'Quad 20A'],
   'BPC-02/Switches':            ['Single Pole', '3-Way', 'Dimmer'],
-  'BPC-02/Data Outlets':        ['CAT6 Single', 'CAT6 Duplex', 'Fibre'],
+  'BPC-02/Data Outlets':        ['CAT6 Single', 'CAT6 Duplex', 'Fiber'],
   'BPC-02/Occupancy Sensors':   ['Ceiling Mount', 'Wall Switch'],
   // BPC-03 Raceway / Cable
   'BPC-03/EMT':                 ['D/S Strap', 'D/C Strap', 'Beam Clamp', 'Rack'],
@@ -654,11 +654,11 @@ export const GENERIC_ASSEMBLIES: Assembly[] = [
  * Second seed batch — enough breadth that every category has something in it.
  *
  * Nine of the eleven categories used to be empty, so any screen that drilled
- * past Fixtures or Devices demoed as "the catalogue import will populate it".
+ * past Fixtures or Devices demoed as "the catalog import will populate it".
  * These carry real component lists at plausible quantities, priced against
  * MASTER_PARTS codes wherever a part for the job already exists.
  */
-export const CATALOGUE_ASSEMBLIES: Assembly[] = [
+export const CATALOG_ASSEMBLIES: Assembly[] = [
   // ── Fixtures ────────────────────────────────────────────────────────────
   { id: 'fx-210', name: 'LED Troffer 2\xd72 Emergency', code: 'BPA-FX-210', desc: 'LED Troffer 2\xd72 30W with integral battery pack, ACT grid',
     status: 'recommended', subcat: 'Troffers', type: '2\xd72 Drop-In', context: ['ACT Ceiling'], wiringMethod: 'MC-PCS 12/3', source: 'company', isFavorite: true,
@@ -935,7 +935,7 @@ export const UNIT_OPTIONS = ['EA', 'LF', 'LB', 'HR', 'SF', 'CY', 'NOTE', 'SET'];
 
 /**
  * Additional assemblies so each populated branch of the cascade has real leaves.
- * Kenneth's library import will replace these with the production catalogue.
+ * Kenneth's library import will replace these with the production catalog.
  */
 export const EXTRA_ASSEMBLIES: Assembly[] = [
   // Fixtures
@@ -1047,7 +1047,7 @@ export const EXTRA_ASSEMBLIES: Assembly[] = [
 /** Every assembly across every category, keyed lookup for the cascade. */
 export const ALL_ASSEMBLIES: Assembly[] = [
   ...FIXTURE_ASSEMBLIES, ...DEVICE_ASSEMBLIES, ...GENERIC_ASSEMBLIES, ...EXTRA_ASSEMBLIES,
-  ...CATALOGUE_ASSEMBLIES,
+  ...CATALOG_ASSEMBLIES,
 ];
 
 /** Which category a given assembly belongs to, derived from its code. */

@@ -4,7 +4,7 @@ import { ChevronLeft, MoreHorizontal } from "lucide-react";
 
 /**
  * Project-level header shared by every project-scoped screen
- * (Overview, Drawings, Project Breakdown, Takeoff, Pricing, Bid Builder,
+ * (Overview, Drawings, Project Breakdown, Takeoff, Extensions, Bid Builder,
  * Proposal Center).
  *
  * Row 1 — back to Projects, project name, project code, status chip, optional
@@ -18,7 +18,7 @@ export const PROJECT_TABS = [
   // Classifications are defined before or during takeoff, so it sits before it.
   "Project Breakdown",
   "Takeoff",
-  "Pricing",
+  "Extensions",
   "Bid Builder",
   "Proposal Center",
 ] as const;
@@ -31,14 +31,14 @@ export const TAB_PAGE_MAP: Record<ProjectTab, string> = {
   Drawings: "drawings",
   "Project Breakdown": "project-breakdown",
   Takeoff: "takeoff-workspace",
-  Pricing: "pricing",
+  Extensions: "pricing",
   "Bid Builder": "bid-builder",
   "Proposal Center": "proposal-center",
 };
 
 const PROJECT_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   takeoff: { label: "Takeoff in progress", color: "#7C3AED", bg: "#F5F3FF" },
-  pricing: { label: "Pricing required", color: "#D97706", bg: "#FFFBEB" },
+  pricing: { label: "Extensions required", color: "#D97706", bg: "#FFFBEB" },
   bidding: { label: "Bid in progress", color: "#1D4ED8", bg: "#EFF6FF" },
   won: { label: "Won", color: "#16A34A", bg: "#F0FDF4" },
   lost: { label: "Lost", color: "#DC2626", bg: "#FEF2F2" },

@@ -153,7 +153,7 @@ export function QuotesTab({ rows, onChange, taxRate }: {
     const id = `q-${rows.length + 1}-${Math.round(includedTotal)}`;
     onChange([...rows, {
       id, included: false, quoteType: QUOTE_CATEGORIES[0], supplier: '', reference: '',
-      costCode: COST_CODES[0], labourHours: 0, taxable: true, unitCost: 0, multiplier: 1,
+      costCode: COST_CODES[0], laborHours: 0, taxable: true, unitCost: 0, multiplier: 1,
       expiration: '', status: 'requested', markup: 0,
     }]);
     if (!g.open.has(QUOTE_CATEGORIES[0])) g.toggle(QUOTE_CATEGORIES[0]);
@@ -189,7 +189,7 @@ export function QuotesTab({ rows, onChange, taxRate }: {
               <TextCell value={row.supplier} onChange={(v) => update(row.id, { supplier: v })} placeholder="Supplier" strong />
               <TextCell value={row.reference} onChange={(v) => update(row.id, { reference: v })} placeholder="Quote ref" />
               <SelectCell value={row.costCode} onChange={(v) => update(row.id, { costCode: v })} options={COST_CODES} allowCustom />
-              <NumCell value={row.labourHours} onChange={(v) => update(row.id, { labourHours: v })} step={0.25} suffix="h" />
+              <NumCell value={row.laborHours} onChange={(v) => update(row.id, { laborHours: v })} step={0.25} suffix="h" />
               <TaxCheck on={row.taxable} onChange={(v) => update(row.id, { taxable: v })} label={row.supplier || 'quote'} />
               <NumCell value={row.unitCost} onChange={(v) => update(row.id, { unitCost: v })} prefix="$" step={0.01} />
               <NumCell value={row.multiplier} onChange={(v) => update(row.id, { multiplier: v })} step={0.01} />
@@ -218,7 +218,7 @@ export function QuotesTab({ rows, onChange, taxRate }: {
           <span key="l" style={{ ...headStyle('left'), color: '#374151' }}>Total</span>,
           <span key="1" />, <span key="2" />, <span key="3" />, <span key="4" />,
           <span key="hrs" style={{ ...MONO, fontSize: 11, color: '#6B7280', textAlign: 'right', display: 'block', width: '100%' }}>
-            {rows.filter((r) => r.included).reduce((s, r) => s + r.labourHours, 0).toFixed(2)} h
+            {rows.filter((r) => r.included).reduce((s, r) => s + r.laborHours, 0).toFixed(2)} h
           </span>,
           <span key="6" />,
           <StaticCell key="tax" align="right">{money(rows.filter((r) => r.included).reduce((s, r) => s + rowTax(amountOf(r), r.taxable, taxRate), 0))}</StaticCell>,
@@ -633,7 +633,7 @@ export function EquipmentTab({ rows, onChange, taxRate }: {
     const supplier = suppliers[0] ?? 'New supplier';
     onChange([...rows, {
       id, included: false, equipment: 'New equipment', supplier, costCode: COST_CODES[12],
-      labourHours: 0, taxable: true, rate: 0, period: 'Week', quantity: 1, duration: 1,
+      laborHours: 0, taxable: true, rate: 0, period: 'Week', quantity: 1, duration: 1,
     }]);
     if (!g.open.has(supplier)) g.toggle(supplier);
     setOpenId(id);
@@ -711,7 +711,7 @@ export function EquipmentTab({ rows, onChange, taxRate }: {
             />
           </DrawerField>
           <DrawerField label="Labor hours" hint="Optional — operator time, if it is yours rather than the hire company's.">
-            <input type="number" step="0.25" value={active.labourHours} onChange={(e) => update(active.id, { labourHours: parseFloat(e.target.value) || 0 })} style={drawerInput} />
+            <input type="number" step="0.25" value={active.laborHours} onChange={(e) => update(active.id, { laborHours: parseFloat(e.target.value) || 0 })} style={drawerInput} />
           </DrawerField>
           <DrawerField label="Notes">
             <textarea

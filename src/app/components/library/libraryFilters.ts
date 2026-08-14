@@ -267,10 +267,10 @@ export function constraintNote(active: ContextId[]): string | null {
 // ─── Parts the context permits ────────────────────────────────────────────────
 
 /**
- * Whether a catalogue part may be used under the active conditions.
+ * Whether a catalog part may be used under the active conditions.
  *
  * Matched on the part's own name and code rather than a hand-maintained
- * allow-list, so a part added to the catalogue tomorrow is governed by the same
+ * allow-list, so a part added to the catalog tomorrow is governed by the same
  * rule without anyone remembering to register it.
  */
 export function partAllowed(part: Part, active: ContextId[]): boolean {
@@ -311,7 +311,7 @@ export const contextParts = (active: ContextId[]) => MASTER_PARTS.filter((p) => 
  *
  * `Assembly.context` is display text written for an estimator to read — "Bar
  * Joist – Open Ceiling", "Hard Ceiling – Metal Framing" — not ids. Matched on
- * substrings rather than a lookup table so a phrasing added to the catalogue
+ * substrings rather than a lookup table so a phrasing added to the catalog
  * tomorrow is still understood, and so the en dash in those labels cannot break
  * the match by being typed as a hyphen somewhere.
  *
@@ -403,7 +403,7 @@ export const ROLE_BOM_GROUP: Record<PartRole, string> = {
   controls: 'Controls',
 };
 
-/** How a role is recognised in the catalogue. */
+/** How a role is recognised in the catalog. */
 const ROLE_MATCH: Record<PartRole, (p: Part) => boolean> = {
   mounting:  (p) => p.cat === 'Hangers & Supports' || p.bomGroup === 'Mounting',
   wiring:    (p) => p.cat === 'Wire & Cable' && p.subcat !== 'Grounding' && p.subcat !== 'Control Wire',
@@ -420,7 +420,7 @@ const ROLE_MATCH: Record<PartRole, (p: Part) => boolean> = {
  *
  * A T-bar drop-in fixture on MC needs mounting, wiring, fittings and grounding
  * — it does not need raceway, so no raceway picker is shown. Offering an empty
- * or irrelevant picker is the same failure as offering the whole catalogue.
+ * or irrelevant picker is the same failure as offering the whole catalog.
  */
 export function rolesFor(opts: {
   kind: 'fixture' | 'device';
@@ -449,7 +449,7 @@ export interface RoleChoice {
 
 /**
  * The parts on offer for each role the configuration needs, already narrowed to
- * what the conditions permit. This is what replaces searching the catalogue.
+ * what the conditions permit. This is what replaces searching the catalog.
  */
 export function choicesFor(opts: {
   kind: 'fixture' | 'device';
@@ -531,7 +531,7 @@ export function addOnsFor(active: ContextId[], mount: string, kind?: string): Ad
   return out;
 }
 
-/** Turns a chosen catalogue part into a BOM row for the given role. */
+/** Turns a chosen catalog part into a BOM row for the given role. */
 export function partToBomItem(part: Part, role: PartRole, qty: number): BOMItem {
   return {
     id: `sel-${role}-${part.id}`,
@@ -645,7 +645,7 @@ export function aiSuggestionsFor(ctx: AiContext): AiSuggestion[] {
     out.push({
       id: 'ai-pullbox',
       title: 'Consider a pull box on this run',
-      reason: `${ctx.runLF} ft is long enough that a pull point saves labour on the install.`,
+      reason: `${ctx.runLF} ft is long enough that a pull point saves labor on the install.`,
       severity: 'advice',
       add: { name: 'Pull Box 6×6×4', code: 'PB-664', unit: 'EA', qty: 1, bomGroup: 'Box & Cover' },
     });
@@ -677,7 +677,7 @@ export function aiSuggestionsFor(ctx: AiContext): AiSuggestion[] {
 /**
  * Which part categories belong to each assembly category.
  *
- * The parts catalogue is organised by what a part *is* (Wire & Cable, Boxes &
+ * The parts catalog is organized by what a part *is* (Wire & Cable, Boxes &
  * Covers); an estimator building an assembly thinks in terms of what they are
  * building (Fixtures, Fire Alarm). This maps one onto the other so the rail can
  * be filtered by the same vocabulary the rest of Build Mode uses.

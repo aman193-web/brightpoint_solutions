@@ -45,16 +45,16 @@ export interface PricingRow {
   supplierName?: string;
   quoteRef?: string;
   extMaterialCost: number;
-  labourProfile: string;
+  laborProfile: string;
   /**
-   * NECA Column 1 labour unit — hours to install one unit of this material
-   * under normal conditions. Catalogue data that travels with the part, which
-   * is why it belongs on the material line even though labour totals are
+   * NECA Column 1 labor unit — hours to install one unit of this material
+   * under normal conditions. Catalog data that travels with the part, which
+   * is why it belongs on the material line even though labor totals are
    * assembled in the Bid Builder.
    */
   neca1: number;
-  labourUnit: number;
-  totalLabourHrs: number;
+  laborUnit: number;
+  totalLaborHrs: number;
   status: ItemStatus;
   notes?: string;
   locations: DrawingLocation[];
@@ -72,7 +72,7 @@ export const MATERIAL_LINES: PricingRow[] = [
     drawingPage: 'E-101', qty: 16, uom: 'ea',
     baseProgrammePrice: 48.50, companyPrice: 44.00, supplierPrice: 41.80,
     selectedPrice: 41.80, selectedSource: 'supplier', supplierName: 'Rexel', quoteRef: 'QT-2026-0891',
-    extMaterialCost: 668.80, labourProfile: 'Retail — L2', neca1: 0.68, labourUnit: 0.80, totalLabourHrs: 12.80,
+    extMaterialCost: 668.80, laborProfile: 'Retail — L2', neca1: 0.68, laborUnit: 0.80, totalLaborHrs: 12.80,
     status: 'complete', lastUpdated: '2026-07-10', updatedBy: 'J. Martinez',
     locations: [{ page: 'E-101', markerNum: 1 }, { page: 'E-101', markerNum: 2 }, { page: 'E-102', markerNum: 1 }],
   },
@@ -82,7 +82,7 @@ export const MATERIAL_LINES: PricingRow[] = [
     drawingPage: 'E-101', qty: 2, uom: 'ea',
     baseProgrammePrice: 68.00, companyPrice: 65.00,
     selectedPrice: 65.00, selectedSource: 'company',
-    extMaterialCost: 130.00, labourProfile: 'Retail — L2', neca1: 0.77, labourUnit: 0.90, totalLabourHrs: 1.80,
+    extMaterialCost: 130.00, laborProfile: 'Retail — L2', neca1: 0.77, laborUnit: 0.90, totalLaborHrs: 1.80,
     status: 'complete', lastUpdated: '2026-07-08', updatedBy: 'J. Martinez',
     locations: [{ page: 'E-101', markerNum: 5 }, { page: 'E-101', markerNum: 6 }],
   },
@@ -92,7 +92,7 @@ export const MATERIAL_LINES: PricingRow[] = [
     drawingPage: 'E-101', qty: 27.3, uom: 'm',
     baseProgrammePrice: 3.80, companyPrice: 3.50,
     selectedPrice: 3.80, selectedSource: 'programme',
-    extMaterialCost: 103.74, labourProfile: 'Retail — L2', neca1: 0.15, labourUnit: 0.18, totalLabourHrs: 4.91,
+    extMaterialCost: 103.74, laborProfile: 'Retail — L2', neca1: 0.15, laborUnit: 0.18, totalLaborHrs: 4.91,
     status: 'complete', lastUpdated: '2026-07-06',
     locations: [{ page: 'E-101', markerNum: 3 }],
   },
@@ -102,7 +102,7 @@ export const MATERIAL_LINES: PricingRow[] = [
     drawingPage: 'E-101', qty: 128, uom: 'm',
     baseProgrammePrice: 2.10, companyPrice: 1.95,
     selectedPrice: 1.95, selectedSource: 'company',
-    extMaterialCost: 249.60, labourProfile: 'Retail — L2', neca1: 0.034, labourUnit: 0.04, totalLabourHrs: 5.12,
+    extMaterialCost: 249.60, laborProfile: 'Retail — L2', neca1: 0.034, laborUnit: 0.04, totalLaborHrs: 5.12,
     status: 'complete', lastUpdated: '2026-07-08',
     locations: [{ page: 'E-101', markerNum: 1 }, { page: 'E-101', markerNum: 2 }],
   },
@@ -112,7 +112,7 @@ export const MATERIAL_LINES: PricingRow[] = [
     drawingPage: 'E-101', qty: 16, uom: 'ea',
     baseProgrammePrice: 3.80, companyPrice: 3.50,
     selectedPrice: 0, selectedSource: 'missing',
-    extMaterialCost: 0, labourProfile: 'Retail — L2', neca1: 0.085, labourUnit: 0.10, totalLabourHrs: 1.60,
+    extMaterialCost: 0, laborProfile: 'Retail — L2', neca1: 0.085, laborUnit: 0.10, totalLaborHrs: 1.60,
     status: 'missing-price', lastUpdated: '2026-07-01',
     locations: [{ page: 'E-101', markerNum: 1 }],
   },
@@ -122,7 +122,7 @@ export const MATERIAL_LINES: PricingRow[] = [
     drawingPage: 'E-101', qty: 3, uom: 'ea',
     baseProgrammePrice: 12.50, companyPrice: 11.80,
     selectedPrice: 11.80, selectedSource: 'company',
-    extMaterialCost: 35.40, labourProfile: 'Retail — L2', neca1: 0.17, labourUnit: 0.20, totalLabourHrs: 0.60,
+    extMaterialCost: 35.40, laborProfile: 'Retail — L2', neca1: 0.17, laborUnit: 0.20, totalLaborHrs: 0.60,
     status: 'complete', lastUpdated: '2026-07-05',
     locations: [{ page: 'E-101', markerNum: 4 }],
   },
@@ -132,7 +132,7 @@ export const MATERIAL_LINES: PricingRow[] = [
     drawingPage: 'E-102', qty: 4, uom: 'ea',
     baseProgrammePrice: 52.00,
     selectedPrice: 52.00, selectedSource: 'stale',
-    extMaterialCost: 208.00, labourProfile: 'Retail — L2', neca1: 0.68, labourUnit: 0.80, totalLabourHrs: 3.20,
+    extMaterialCost: 208.00, laborProfile: 'Retail — L2', neca1: 0.68, laborUnit: 0.80, totalLaborHrs: 3.20,
     status: 'pending-review', lastUpdated: '2025-11-15', updatedBy: 'System',
     locations: [{ page: 'E-102', markerNum: 1 }, { page: 'E-102', markerNum: 2 }],
   },
@@ -142,7 +142,7 @@ export const MATERIAL_LINES: PricingRow[] = [
     drawingPage: 'E-201', qty: 24, uom: 'ea',
     baseProgrammePrice: 8.50, companyPrice: 8.00, supplierPrice: 7.20,
     selectedPrice: 7.20, selectedSource: 'supplier', supplierName: 'Home Depot Pro',
-    extMaterialCost: 172.80, labourProfile: 'Retail — L2', neca1: 0.43, labourUnit: 0.50, totalLabourHrs: 12.00,
+    extMaterialCost: 172.80, laborProfile: 'Retail — L2', neca1: 0.43, laborUnit: 0.50, totalLaborHrs: 12.00,
     status: 'complete', lastUpdated: '2026-07-11',
     locations: [{ page: 'E-201', markerNum: 1 }, { page: 'E-201', markerNum: 2 }],
   },
@@ -152,7 +152,7 @@ export const MATERIAL_LINES: PricingRow[] = [
     drawingPage: 'E-301', qty: 6, uom: 'ea',
     baseProgrammePrice: 68.00, companyPrice: 65.00,
     selectedPrice: 58.50, selectedSource: 'quoted', quoteRef: 'NOTIFIER-2026-114',
-    extMaterialCost: 351.00, labourProfile: 'Retail — L2', neca1: 1.02, labourUnit: 1.20, totalLabourHrs: 7.20,
+    extMaterialCost: 351.00, laborProfile: 'Retail — L2', neca1: 1.02, laborUnit: 1.20, totalLaborHrs: 7.20,
     status: 'complete', lastUpdated: '2026-07-09',
     locations: [{ page: 'E-301', markerNum: 1 }],
   },
@@ -162,7 +162,7 @@ export const MATERIAL_LINES: PricingRow[] = [
     drawingPage: 'E-201', qty: 24, uom: 'ea',
     baseProgrammePrice: 12.50, companyPrice: 12.50,
     selectedPrice: 15.00, selectedSource: 'override', overrideReason: 'Premium jack required per spec section 27',
-    extMaterialCost: 360.00, labourProfile: 'Retail — L2', neca1: 0.3, labourUnit: 0.35, totalLabourHrs: 8.40,
+    extMaterialCost: 360.00, laborProfile: 'Retail — L2', neca1: 0.3, laborUnit: 0.35, totalLaborHrs: 8.40,
     status: 'complete', lastUpdated: '2026-07-07', updatedBy: 'S. Thompson',
     locations: [{ page: 'E-201', markerNum: 3 }],
   },
@@ -172,7 +172,7 @@ export const MATERIAL_LINES: PricingRow[] = [
     drawingPage: 'E-101', qty: 85, uom: 'm',
     baseProgrammePrice: 0.65, companyPrice: 0.62,
     selectedPrice: 0.62, selectedSource: 'company',
-    extMaterialCost: 52.70, labourProfile: 'Retail — L2', neca1: 0.025, labourUnit: 0.03, totalLabourHrs: 2.55,
+    extMaterialCost: 52.70, laborProfile: 'Retail — L2', neca1: 0.025, laborUnit: 0.03, totalLaborHrs: 2.55,
     status: 'complete', lastUpdated: '2026-07-08',
     locations: [{ page: 'E-101', markerNum: 3 }],
   },
@@ -182,7 +182,7 @@ export const MATERIAL_LINES: PricingRow[] = [
     drawingPage: 'E-301', qty: 12, uom: 'ea',
     baseProgrammePrice: 52.00, companyPrice: 49.00,
     selectedPrice: 49.00, selectedSource: 'company',
-    extMaterialCost: 588.00, labourProfile: 'Retail — L2', neca1: 0.85, labourUnit: 1.00, totalLabourHrs: 12.00,
+    extMaterialCost: 588.00, laborProfile: 'Retail — L2', neca1: 0.85, laborUnit: 1.00, totalLaborHrs: 12.00,
     status: 'ai-suggested', lastUpdated: '2026-07-12', updatedBy: 'AI',
     locations: [{ page: 'E-301', markerNum: 2 }],
   },

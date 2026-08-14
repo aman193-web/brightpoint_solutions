@@ -453,7 +453,7 @@ export function OnboardingFlow({ onComplete, onExit }: OnboardingFlowProps) {
           {step === 4 && (
             <>
               <p style={{ fontSize: 13, color: "#6B7280", marginTop: -4 }}>
-                Connect supplier pricing catalogues to auto-populate material costs in your estimates. You can connect more suppliers later.
+                Connect supplier pricing catalogs to auto-populate material costs in your estimates. You can connect more suppliers later.
               </p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                 {SUPPLIERS.map((s) => {

@@ -98,7 +98,6 @@ const SETTINGS_TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[]
   { id: 'team',          label: 'Team & Access',    icon: <Users size={14} /> },
   { id: 'contacts',      label: 'Contacts',         icon: <Contact size={14} /> },
   { id: 'parts',         label: 'Parts Library',    icon: <Package size={14} /> },
-  { id: 'labor',         label: 'Labor defaults',   icon: <Zap size={14} /> },
   { id: 'markup',        label: 'Markup & pricing', icon: <CreditCard size={14} /> },
   { id: 'notifications', label: 'Notifications',    icon: <Bell size={14} /> },
   { id: 'billing',       label: 'Billing',          icon: <CreditCard size={14} /> },
@@ -657,60 +656,6 @@ function TeamTab() {
   );
 }
 
-// ─── Labor defaults tab ───────────────────────────────────────────────────────
-
-function LaborTab() {
-  return (
-    <>
-      <SectionCard title="Labor rates">
-        <FieldRow label="Default state" hint="Determines default labor rates and burden factors">
-          <select defaultValue="TX" style={{ height: 34, padding: '0 10px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, background: 'white', outline: 'none' }}>
-            <option value="TX">TX — Texas</option>
-            <option value="CA">CA — California</option>
-            <option value="FL">FL — Florida</option>
-            <option value="NY">NY — New York</option>
-            <option value="IL">IL — Illinois</option>
-          </select>
-        </FieldRow>
-        {[
-          { label: 'Journeyman (L2)', rate: '85.00' },
-          { label: 'Apprentice (L3)', rate: '52.00' },
-          { label: 'Foreman', rate: '98.00' },
-          { label: 'General foreman', rate: '108.00' },
-        ].map(({ label, rate }) => (
-          <FieldRow key={label} label={label}>
-            <div style={{ position: 'relative', width: 140 }}>
-              <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#6B7280' }}>$</span>
-              <input defaultValue={rate} style={{ width: '100%', height: 34, paddingLeft: 18, border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, fontFamily: 'IBM Plex Mono, monospace', outline: 'none', boxSizing: 'border-box' }} />
-              <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#9CA3AF' }}>/hr</span>
-            </div>
-          </FieldRow>
-        ))}
-      </SectionCard>
-
-      <SectionCard title="Labor burden & overheads">
-        {[
-          { label: 'Foreman allowance', hint: '% of labor hours added for site supervision', value: '10' },
-          { label: 'Small tools allowance', hint: '% of labor cost for tools & consumables', value: '3' },
-          { label: 'PPE allowance', hint: 'Per-person daily allowance (USD)', value: '12' },
-        ].map(({ label, hint, value }) => (
-          <FieldRow key={label} label={label} hint={hint}>
-            <div style={{ position: 'relative', width: 120 }}>
-              <input defaultValue={value} style={{ width: '100%', height: 34, padding: '0 24px 0 10px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, fontFamily: 'IBM Plex Mono, monospace', outline: 'none', boxSizing: 'border-box' }} />
-              <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#9CA3AF' }}>%</span>
-            </div>
-          </FieldRow>
-        ))}
-      </SectionCard>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 7, background: '#2563EB', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-          <Save size={13} /> Save changes
-        </button>
-      </div>
-    </>
-  );
-}
-
 // ─── Markup tab ───────────────────────────────────────────────────────────────
 
 function MarkupTab() {
@@ -929,7 +874,6 @@ export function SettingsView({ initialTab }: { initialTab?: SettingsTab }) {
       case 'team':          return <TeamTab />;
       case 'contacts':      return <ContactsTab />;
       case 'parts':         return <PartsLibraryTab />;
-      case 'labor':         return <LaborTab />;
       case 'markup':        return <MarkupTab />;
       case 'notifications': return <NotificationsTab />;
       case 'billing':       return <BillingTab />;
@@ -938,7 +882,7 @@ export function SettingsView({ initialTab }: { initialTab?: SettingsTab }) {
 
   const TAB_TITLES: Record<SettingsTab, string> = {
     company: 'Company', team: 'Team & Access', contacts: 'Contacts',
-    parts: 'Parts Library', labor: 'Labor defaults', markup: 'Markup & pricing',
+    parts: 'Parts Library', markup: 'Markup & pricing',
     notifications: 'Notifications', billing: 'Billing',
   };
 

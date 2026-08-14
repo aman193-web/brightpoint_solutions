@@ -25,6 +25,7 @@ import {
 } from './libraryFilters';
 import { addRecord } from '../../lib/takeoffRecords';
 import { COMPANY_LABOR_RATE } from '../../lib/costing';
+import { ORIGIN_HINT, ORIGIN_LABEL } from '../../lib/libraryOwnership';
 import { getGroups } from '../../lib/projectBreakdown';
 import { defaultClassification } from '../../lib/takeoffClassification';
 import { FilterBar } from './FilterBar';
@@ -40,7 +41,7 @@ import { useRecentAssemblies, recordSaved, createdAgo } from '../../lib/recentAs
  *
  * What it improves: one workspace instead of four floating windows, search that
  * spans every level, a breadcrumb that shows and clears the current path,
- * inline favourites, and drag-and-drop from parts straight into the BOM.
+ * inline favorites, and drag-and-drop from parts straight into the BOM.
  */
 
 // ─── Shared column primitives ─────────────────────────────────────────────────
@@ -194,10 +195,10 @@ type SortMode = 'recent' | 'az' | 'za' | 'code' | 'category';
  * part has a price and no category path, an assembly has a code and no price —
  * and one shared union would offer each band options it cannot honour.
  */
-type PartSort = 'catalogue' | 'recent' | 'az' | 'za' | 'price';
+type PartSort = 'catalog' | 'recent' | 'az' | 'za' | 'price';
 
 const PART_SORT_OPTIONS: { id: PartSort; label: string }[] = [
-  { id: 'catalogue', label: 'Catalogue order' },
+  { id: 'catalog', label: 'Catalog order' },
   { id: 'recent',    label: 'Recently added' },
   { id: 'az',        label: 'Name A\u2013Z' },
   { id: 'za',        label: 'Name Z\u2013A' },
@@ -375,7 +376,7 @@ function TakeoffQueueModal({ onClose }: { onClose: () => void }) {
                     style={{ width: '100%', height: 26, padding: '0 6px', border: '1px solid #E5E7EB', borderRadius: 5, fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', textAlign: 'right', outline: 'none', boxSizing: 'border-box' }}
                   />
                   <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#374151', textAlign: 'right' }}>${(e.materialCost * e.count).toFixed(2)}</span>
-                  <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#6B7280', textAlign: 'right' }}>{(e.labourHours * e.count).toFixed(1)} h</span>
+                  <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#6B7280', textAlign: 'right' }}>{(e.laborHours * e.count).toFixed(1)} h</span>
                   <button onClick={() => removeEntry(e.entryId)} aria-label={`Remove ${e.name}`}
                     style={{ width: 22, height: 22, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
                     <Trash2 size={11} color="#DC2626" />
@@ -426,8 +427,12 @@ function TakeoffQueueModal({ onClose }: { onClose: () => void }) {
 export interface TakeoffModeHooks {
   /** Shown on the action, so the estimator knows what the record will inherit. */
   classificationLabel: string;
-  onAddAssembly: (asm: Assembly, qty: number) => void;
-  onAddPart: (part: Part, qty: number) => void;
+  /**
+   * `qty` is what the estimator actually typed. Omit it — as the inline `+` on a
+   * part row does — and the host asks for a quantity instead of assuming one.
+   */
+  onAddAssembly: (asm: Assembly, qty?: number) => void;
+  onAddPart: (part: Part, qty?: number) => void;
 }
 
 export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryPicker, takeoffMode }: {
@@ -500,7 +505,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
   const [partCat, setPartCat]       = useState<string | null>('Hangers & Supports');
   const [partSubcat, setPartSubcat] = useState<string | null>('T-Bar');
   const [partSearch, setPartSearch] = useState('');
-  const [partSort, setPartSort] = useState<PartSort>('catalogue');
+  const [partSort, setPartSort] = useState<PartSort>('catalog');
   const [partFavs, setPartFavs]     = useState<Set<string>>(new Set(['pt-38', 'pt-4']));
 
   // Selected assembly's working BOM
@@ -678,7 +683,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
         pt.name.toLowerCase().includes(q) || pt.code.toLowerCase().includes(q) || pt.mfr.toLowerCase().includes(q))
       : allowedParts;
     /* Only the list view sorts. The cascade's third column is the contents of one
-       subcategory, where the catalogue's own order is the meaningful one. */
+       subcategory, where the catalog's own order is the meaningful one. */
     switch (partSort) {
       case 'recent': return [...rows].sort(byRecentlyAdded);
       case 'az': return [...rows].sort((a, b) => a.name.localeCompare(b.name));
@@ -746,7 +751,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
    * a row in either has to light up the other — otherwise "click a row, then
    * Replace" leaves the estimator checking by eye that the part they are about to
    * swap in is not the one already there. Matched on part code: a BOM row records
-   * the code, not the catalogue id, and the code is what identifies the material
+   * the code, not the catalog id, and the code is what identifies the material
    * on a purchase order.
    */
   const selectedBomRow = bom.find((i) => i.id === selectedBomId) ?? null;
@@ -827,7 +832,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
       count: qty,
       componentCount: bom.length,
       materialCost: matCost,
-      labourHours: labourHrs,
+      laborHours: laborHrs,
       sheet: 'E-1',
       /* The same rule Build Mode's header uses, so an assembly queued from Browse
          arms the same tool as one queued straight after building it. */
@@ -930,7 +935,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
   }
 
   const matCost   = bom.reduce((sum, i) => sum + i.qty * 24.5, 0);
-  const labourHrs = bom.length * 0.35;
+  const laborHrs = bom.length * 0.35;
 
 
   return (
@@ -1017,7 +1022,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
       {/* Body: cascades + BOM. bp-lib stacks the BOM below the cascades ≤1024px. */}
       <div className="bp-lib" style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
         {/* Left: assembly cascade over parts cascade */}
-        <div className="bp-lib-centre" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+        <div className="bp-lib-center" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
           {/* Assemblies band */}
           <SectionBar
             label="Assemblies"
@@ -1133,12 +1138,12 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                 ? (
                   <EmptyColumn
                     /* An empty branch caused by the filters is not an empty
-                       branch. Saying "the catalogue import will populate it"
+                       branch. Saying "the catalog import will populate it"
                        when the rows exist and are hidden sends the estimator
                        looking for a data problem that isn't there. */
                     text={asmHidden > 0
                       ? `Nothing here matches the active building conditions — ${asmHidden} assemblies are filtered out. Clear a filter to see them.`
-                      : 'No assemblies in this branch yet. The catalogue import will populate it.'}
+                      : 'No assemblies in this branch yet. The catalog import will populate it.'}
                   />
                 )
                 : sortRows(assemblyList).map((a) => {
@@ -1162,7 +1167,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                             : <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 4, color: st.color, background: st.bg }}>{st.symbol}</span>}
                           <button
                             onClick={(e) => { e.stopPropagation(); setAsmFavs((prev) => { const n = new Set(prev); if (n.has(a.id)) n.delete(a.id); else n.add(a.id); return n; }); }}
-                            aria-label={fav ? 'Remove favourite' : 'Add favourite'}
+                            aria-label={fav ? 'Remove favorite' : 'Add favorite'}
                             style={{ width: 20, height: 20, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
                             <Star size={11} fill={fav ? '#F59E0B' : 'none'} color={fav ? '#F59E0B' : '#D1D5DB'} />
@@ -1233,7 +1238,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
               />
             </div>
             {/* Ordering is a list-view control: the cascade shows one branch, where
-                the catalogue's own order is the meaningful one. */}
+                the catalog's own order is the meaningful one. */}
             {partsMode === 'list' && (
               <select
                 value={partSort}
@@ -1242,8 +1247,8 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                 style={{
                   height: 24, padding: '0 6px', border: '1px solid #E5E7EB', borderRadius: 6,
                   fontSize: 11, background: 'white', outline: 'none', cursor: 'pointer', flexShrink: 0,
-                  color: partSort === 'catalogue' ? '#6B7280' : '#1D4ED8',
-                  fontWeight: partSort === 'catalogue' ? 400 : 600,
+                  color: partSort === 'catalog' ? '#6B7280' : '#1D4ED8',
+                  fontWeight: partSort === 'catalog' ? 400 : 600,
                 }}
               >
                 {PART_SORT_OPTIONS.map((o) => <option key={o.id} value={o.id}>Sort: {o.label}</option>)}
@@ -1279,7 +1284,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                   onDragEnd: () => { dragState.part = null; },
                   right: (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                      <button onClick={(e) => { e.stopPropagation(); if (takeoffMode) takeoffMode.onAddPart(pt, 1); else addPart(pt); }} title={takeoffMode ? 'Take this part off — quantity editable in the Takeoff List' : 'Add to assembly'}
+                      <button onClick={(e) => { e.stopPropagation(); if (takeoffMode) takeoffMode.onAddPart(pt); else addPart(pt); }} title={takeoffMode ? 'Take this part off — you will be asked how many' : 'Add to assembly'}
                         style={{ width: 20, height: 20, border: 'none', background: '#EFF6FF', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Plus size={10} color="#1D4ED8" />
                       </button>
@@ -1288,7 +1293,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                         <RefreshCw size={10} color={selectedBomId ? '#6B7280' : '#D1D5DB'} />
                       </button>
                       <button onClick={(e) => { e.stopPropagation(); setPartFavs((prev) => { const n = new Set(prev); if (n.has(pt.id)) n.delete(pt.id); else n.add(pt.id); return n; }); }}
-                        aria-label="Toggle favourite"
+                        aria-label="Toggle favorite"
                         style={{ width: 20, height: 20, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Star size={10} fill={partFavs.has(pt.id) ? '#F59E0B' : 'none'} color={partFavs.has(pt.id) ? '#F59E0B' : '#D1D5DB'} />
                       </button>
@@ -1352,7 +1357,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                           onDragEnd={() => { dragState.part = null; }}
                           right={
                             <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                              <button onClick={(e) => { e.stopPropagation(); if (takeoffMode) takeoffMode.onAddPart(pt, 1); else addPart(pt); }} title={takeoffMode ? 'Take this part off — quantity editable in the Takeoff List' : 'Add to assembly'}
+                              <button onClick={(e) => { e.stopPropagation(); if (takeoffMode) takeoffMode.onAddPart(pt); else addPart(pt); }} title={takeoffMode ? 'Take this part off — you will be asked how many' : 'Add to assembly'}
                                 style={{ width: 20, height: 20, border: 'none', background: '#EFF6FF', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <Plus size={10} color="#1D4ED8" />
                               </button>
@@ -1361,7 +1366,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                                 <RefreshCw size={10} color={selectedBomId ? '#6B7280' : '#D1D5DB'} />
                               </button>
                               <button onClick={(e) => { e.stopPropagation(); setPartFavs((prev) => { const n = new Set(prev); if (n.has(pt.id)) n.delete(pt.id); else n.add(pt.id); return n; }); }}
-                                aria-label={fav ? 'Remove favourite' : 'Add favourite'}
+                                aria-label={fav ? 'Remove favorite' : 'Add favorite'}
                                 style={{ width: 20, height: 20, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <Star size={10} fill={fav ? '#F59E0B' : 'none'} color={fav ? '#F59E0B' : '#D1D5DB'} />
                               </button>
@@ -1444,7 +1449,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
               of facts, an action at the foot — so inspecting a part and inspecting
               an assembly are one habit rather than two. A part has no bill of
               materials, so what fills the middle is the part's own record: where it
-              sits in the catalogue, what it costs, and what it takes to install.
+              sits in the catalog, what it costs, and what it takes to install.
             */
             <>
               <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
@@ -1477,10 +1482,10 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                   ['Unit', selectedPartDetail.unit],
                   ['Material price', `$${selectedPartDetail.price.toFixed(2)} / ${selectedPartDetail.unit}`],
                   ['Pricing source', pricingSourceOf(selectedPartDetail)],
-                  ['Labour type', laborTypeOf(selectedPartDetail)],
-                  ['Labour rate source', laborRateSourceOf(selectedPartDetail)],
-                  ['Labour hours', `${laborHoursOf(selectedPartDetail).toFixed(3)} / ${selectedPartDetail.unit}`],
-                  ['Labour cost', `$${laborCostOf(selectedPartDetail, COMPANY_LABOR_RATE).toFixed(2)}`],
+                  ['Labor type', laborTypeOf(selectedPartDetail)],
+                  ['Labor rate source', laborRateSourceOf(selectedPartDetail)],
+                  ['Labor hours', `${laborHoursOf(selectedPartDetail).toFixed(3)} / ${selectedPartDetail.unit}`],
+                  ['Labor cost', `$${laborCostOf(selectedPartDetail, COMPANY_LABOR_RATE).toFixed(2)}`],
                   ['BOM group', selectedPartDetail.bomGroup],
                 ] as [string, string][]).map(([label, value], i) => (
                   <div
@@ -1494,15 +1499,15 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                   </div>
                 ))}
                 <div style={{ padding: '10px 14px', fontSize: 10, color: '#9CA3AF', lineHeight: '15px' }}>
-                  Labour cost is {laborHoursOf(selectedPartDetail).toFixed(3)} hrs at the company blended
-                  rate of ${COMPANY_LABOR_RATE.toFixed(2)}/hr. Edit a part's labour in Settings → Parts Library.
+                  Labor cost is {laborHoursOf(selectedPartDetail).toFixed(3)} hrs at the company blended
+                  rate of ${COMPANY_LABOR_RATE.toFixed(2)}/hr. Edit a part's labor in Settings → Parts Library.
                 </div>
               </div>
 
               <div style={{ flexShrink: 0, borderTop: '1px solid #E5E7EB', padding: 14, background: '#FAFAFA', display: 'flex', gap: 8 }}>
                 <button
                   onClick={() => {
-                    if (takeoffMode) takeoffMode.onAddPart(selectedPartDetail, 1);
+                    if (takeoffMode) takeoffMode.onAddPart(selectedPartDetail);
                     else addPart(selectedPartDetail);
                   }}
                   style={{ flex: 1, height: 32, border: 'none', borderRadius: 7, background: '#2563EB', fontSize: 12, fontWeight: 600, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
@@ -1524,7 +1529,33 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{selectedAsm.name}</div>
-                    <div style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'IBM Plex Mono, monospace', marginTop: 1 }}>{selectedAsm.code}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 1 }}>
+                      <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'IBM Plex Mono, monospace' }}>{selectedAsm.code}</span>
+                      {/*
+                        Which catalog this assembly belongs to.
+                        -------------------------------------
+                        `source: 'system'` is the BrightPoint global backbone — shared
+                        with every company and never altered by one. Anything else is
+                        this company's. Duplicate is how you get an editable version of
+                        a backbone assembly; the shared record stays as shipped.
+                      */}
+                      {(() => {
+                        const backbone = selectedAsm.source === 'system';
+                        return (
+                          <span
+                            title={backbone ? ORIGIN_HINT.backbone : ORIGIN_HINT.company}
+                            style={{
+                              fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
+                              padding: '1px 5px', borderRadius: 3,
+                              color: backbone ? '#6B7280' : '#1D4ED8',
+                              background: backbone ? '#F3F4F6' : '#EFF6FF',
+                            }}
+                          >
+                            {backbone ? ORIGIN_LABEL.backbone : ORIGIN_LABEL.company}
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </div>
                   {/*
                     Shape and color live with the assembly and are changeable
@@ -1627,7 +1658,7 @@ export function ColumnLibraryView({ activeLib, libraries, viewSwitcher, libraryP
                 {[
                   { label: 'Components', value: String(bom.length) },
                   { label: 'Material cost', value: '$' + matCost.toFixed(2), mono: true },
-                  { label: 'Labor hours', value: labourHrs.toFixed(1) + ' hrs', mono: true },
+                  { label: 'Labor hours', value: laborHrs.toFixed(1) + ' hrs', mono: true },
                 ].map(({ label, value, mono }) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
                     <span style={{ color: '#6B7280' }}>{label}</span>

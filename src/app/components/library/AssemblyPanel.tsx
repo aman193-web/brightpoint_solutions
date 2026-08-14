@@ -15,7 +15,7 @@ interface PanelAssembly {
   discipline: AsmDiscipline;
   description: string;
   source: AsmSource;
-  labourHours: number;
+  laborHours: number;
   materialCost: number;
   isFavorite: boolean;
   isLocked: boolean;
@@ -36,19 +36,19 @@ export interface AssemblyPanelProps {
 // ─── Same assembly data (compact subset) ─────────────────────────────────────
 
 const PANEL_ASSEMBLIES: PanelAssembly[] = [
-  { id: 'asm-001', name: '2×4 LED Troffer 40W — ACT Ceiling, MC', category: 'Lighting Fixtures', discipline: 'lighting', description: 'Suspended ACT ceiling troffer with MC cable homerun', source: 'system', labourHours: 0.8, materialCost: 69.60, isFavorite: true, isLocked: true, missingPrice: false, recentlyUpdated: false, ceilingType: 'ACT', cableType: 'MC', voltage: '120V' },
-  { id: 'asm-010', name: '2×4 LED Troffer — Existing ACT (Retrofit)', category: 'Lighting Fixtures', discipline: 'lighting', description: 'LED troffer replacement in existing ACT ceiling, reusing existing wiring', source: 'company', labourHours: 0.4, materialCost: 50.50, isFavorite: true, isLocked: false, missingPrice: false, recentlyUpdated: true, ceilingType: 'ACT', voltage: '120V' },
-  { id: 'asm-007', name: '4" Recessed Downlight LED — ACT, MC', category: 'Lighting Fixtures', discipline: 'lighting', description: 'Recessed LED downlight in suspended ACT ceiling, IC-rated', source: 'system', labourHours: 0.7, materialCost: 70.30, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false, ceilingType: 'ACT', cableType: 'MC', voltage: '120V' },
-  { id: 'asm-008', name: '4" Recessed Downlight — Drywall, NM-B', category: 'Lighting Fixtures', discipline: 'lighting', description: 'Recessed LED in drywall ceiling, IC-rated housing', source: 'system', labourHours: 0.6, materialCost: 57.70, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false, ceilingType: 'Drywall', cableType: 'NM-B', voltage: '120V' },
-  { id: 'asm-003', name: 'Emergency Exit Combo — Ceiling Mount', category: 'Safety & Emergency', discipline: 'safety', description: 'Combined emergency light and exit sign, 90-min battery backup', source: 'system', labourHours: 0.9, materialCost: 79.00, isFavorite: true, isLocked: true, missingPrice: false, recentlyUpdated: false, voltage: '120V' },
-  { id: 'asm-009', name: 'LED Strip Light — Warehouse Open Ceiling', category: 'Lighting Fixtures', discipline: 'lighting', description: 'High-bay LED strip for open warehouse ceilings', source: 'system', labourHours: 1.1, materialCost: 140.00, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false, ceilingType: 'Open', voltage: '120V' },
-  { id: 'asm-002', name: 'Duplex Receptacle 20A — New Construction', category: 'Wiring Devices', discipline: 'power', description: 'Standard duplex receptacle, NM-B cable feed', source: 'system', labourHours: 0.5, materialCost: 21.50, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false, cableType: 'NM-B', voltage: '120V' },
-  { id: 'asm-006', name: 'Hospital Grade Receptacle 20A', category: 'Wiring Devices', discipline: 'power', description: 'Hospital-grade receptacle, UL 498 listed', source: 'system', labourHours: 0.65, materialCost: 28.50, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false, voltage: '120V', incompatible: true },
-  { id: 'asm-004', name: '3/4" EMT Conduit — Surface Run', category: 'Conduit & Fittings', discipline: 'power', description: 'EMT conduit per linear metre including fittings', source: 'system', labourHours: 0.18, materialCost: 4.50, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false },
-  { id: 'asm-005', name: '20A Circuit Homerun — EMT to Panel', category: 'Circuits', discipline: 'power', description: 'Complete 20A 120V circuit homerun in EMT conduit', source: 'company', labourHours: 2.4, materialCost: 128.40, isFavorite: false, isLocked: false, missingPrice: false, recentlyUpdated: true, voltage: '120V' },
-  { id: 'asm-012', name: 'Fire Alarm Pull Station — Surface', category: 'Fire Alarm', discipline: 'fire-alarm', description: 'Manual pull station with 2-wire FACP connection', source: 'system', labourHours: 1.2, materialCost: 85.00, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false },
-  { id: 'asm-013', name: 'CAT6 Data Outlet — New Construction', category: 'Data & Communications', discipline: 'data', description: 'CAT6 data outlet with patch panel, up to 100m run', source: 'company', labourHours: 0.9, materialCost: 43.50, isFavorite: false, isLocked: false, missingPrice: false, recentlyUpdated: false },
-  { id: 'asm-015', name: 'Outdoor Weatherproof GFCI 20A', category: 'Wiring Devices', discipline: 'power', description: 'GFCI receptacle in weatherproof cover, outdoor/wet locations', source: 'system', labourHours: 1.2, materialCost: 62.80, isFavorite: false, isLocked: true, missingPrice: true, recentlyUpdated: false },
+  { id: 'asm-001', name: '2×4 LED Troffer 40W — ACT Ceiling, MC', category: 'Lighting Fixtures', discipline: 'lighting', description: 'Suspended ACT ceiling troffer with MC cable homerun', source: 'system', laborHours: 0.8, materialCost: 69.60, isFavorite: true, isLocked: true, missingPrice: false, recentlyUpdated: false, ceilingType: 'ACT', cableType: 'MC', voltage: '120V' },
+  { id: 'asm-010', name: '2×4 LED Troffer — Existing ACT (Retrofit)', category: 'Lighting Fixtures', discipline: 'lighting', description: 'LED troffer replacement in existing ACT ceiling, reusing existing wiring', source: 'company', laborHours: 0.4, materialCost: 50.50, isFavorite: true, isLocked: false, missingPrice: false, recentlyUpdated: true, ceilingType: 'ACT', voltage: '120V' },
+  { id: 'asm-007', name: '4" Recessed Downlight LED — ACT, MC', category: 'Lighting Fixtures', discipline: 'lighting', description: 'Recessed LED downlight in suspended ACT ceiling, IC-rated', source: 'system', laborHours: 0.7, materialCost: 70.30, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false, ceilingType: 'ACT', cableType: 'MC', voltage: '120V' },
+  { id: 'asm-008', name: '4" Recessed Downlight — Drywall, NM-B', category: 'Lighting Fixtures', discipline: 'lighting', description: 'Recessed LED in drywall ceiling, IC-rated housing', source: 'system', laborHours: 0.6, materialCost: 57.70, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false, ceilingType: 'Drywall', cableType: 'NM-B', voltage: '120V' },
+  { id: 'asm-003', name: 'Emergency Exit Combo — Ceiling Mount', category: 'Safety & Emergency', discipline: 'safety', description: 'Combined emergency light and exit sign, 90-min battery backup', source: 'system', laborHours: 0.9, materialCost: 79.00, isFavorite: true, isLocked: true, missingPrice: false, recentlyUpdated: false, voltage: '120V' },
+  { id: 'asm-009', name: 'LED Strip Light — Warehouse Open Ceiling', category: 'Lighting Fixtures', discipline: 'lighting', description: 'High-bay LED strip for open warehouse ceilings', source: 'system', laborHours: 1.1, materialCost: 140.00, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false, ceilingType: 'Open', voltage: '120V' },
+  { id: 'asm-002', name: 'Duplex Receptacle 20A — New Construction', category: 'Wiring Devices', discipline: 'power', description: 'Standard duplex receptacle, NM-B cable feed', source: 'system', laborHours: 0.5, materialCost: 21.50, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false, cableType: 'NM-B', voltage: '120V' },
+  { id: 'asm-006', name: 'Hospital Grade Receptacle 20A', category: 'Wiring Devices', discipline: 'power', description: 'Hospital-grade receptacle, UL 498 listed', source: 'system', laborHours: 0.65, materialCost: 28.50, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false, voltage: '120V', incompatible: true },
+  { id: 'asm-004', name: '3/4" EMT Conduit — Surface Run', category: 'Conduit & Fittings', discipline: 'power', description: 'EMT conduit per linear meter including fittings', source: 'system', laborHours: 0.18, materialCost: 4.50, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false },
+  { id: 'asm-005', name: '20A Circuit Homerun — EMT to Panel', category: 'Circuits', discipline: 'power', description: 'Complete 20A 120V circuit homerun in EMT conduit', source: 'company', laborHours: 2.4, materialCost: 128.40, isFavorite: false, isLocked: false, missingPrice: false, recentlyUpdated: true, voltage: '120V' },
+  { id: 'asm-012', name: 'Fire Alarm Pull Station — Surface', category: 'Fire Alarm', discipline: 'fire-alarm', description: 'Manual pull station with 2-wire FACP connection', source: 'system', laborHours: 1.2, materialCost: 85.00, isFavorite: false, isLocked: true, missingPrice: false, recentlyUpdated: false },
+  { id: 'asm-013', name: 'CAT6 Data Outlet — New Construction', category: 'Data & Communications', discipline: 'data', description: 'CAT6 data outlet with patch panel, up to 100m run', source: 'company', laborHours: 0.9, materialCost: 43.50, isFavorite: false, isLocked: false, missingPrice: false, recentlyUpdated: false },
+  { id: 'asm-015', name: 'Outdoor Weatherproof GFCI 20A', category: 'Wiring Devices', discipline: 'power', description: 'GFCI receptacle in weatherproof cover, outdoor/wet locations', source: 'system', laborHours: 1.2, materialCost: 62.80, isFavorite: false, isLocked: true, missingPrice: true, recentlyUpdated: false },
 ];
 
 const DISC_CFG: Record<AsmDiscipline, { color: string; bg: string; label: string }> = {
@@ -77,7 +77,7 @@ const SEMANTIC_HINTS: { triggers: string[]; chips: string[] }[] = [
   { triggers: ['act', 'suspended', 'drop ceiling'], chips: ['ACT ceiling', 'MC cable preferred'] },
   { triggers: ['gfci', 'outdoor', 'weatherproof'], chips: ['GFCI protection', 'Wet location'] },
   { triggers: ['exit', 'emergency'], chips: ['Emergency fixture', '90-min battery backup'] },
-  { triggers: ['conduit', 'emt', 'imc'], chips: ['Conduit run', 'Per metre pricing'] },
+  { triggers: ['conduit', 'emt', 'imc'], chips: ['Conduit run', 'Per meter pricing'] },
 ];
 
 // ─── AssemblyPanel ────────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ export function AssemblyPanel({ isOpen, onClose, onSelectAssembly }: AssemblyPan
                   {/* Cost + hrs */}
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, fontWeight: 500, color: '#374151' }}>${a.materialCost.toFixed(2)}</div>
-                    <div style={{ fontSize: 10, color: '#9CA3AF' }}>{a.labourHours.toFixed(2)} hrs</div>
+                    <div style={{ fontSize: 10, color: '#9CA3AF' }}>{a.laborHours.toFixed(2)} hrs</div>
                   </div>
 
                   {/* Favorite + expand */}

@@ -28,7 +28,7 @@ import {
  *  - A saved assembly loads "as saved". The first spec change regenerates its
  *    parametric rows and shows a Revert strip — an explicit, reversible data
  *    transformation, not a mode you have to choose up front.
- *  - Selecting a component jumps the parts index to that part's neighbourhood,
+ *  - Selecting a component jumps the parts index to that part's neighborhood,
  *    which turns Replace into one click. That is the one cross-pane link worth
  *    its rent; a part-to-assemblies reverse lookup was considered and dropped.
  *  - Drafts are pinned at the top of the assemblies index, so the thing you are
@@ -248,7 +248,7 @@ export function WorkbenchLibraryView({ activeLib, modeSwitcher, viewSwitcher, li
     setDirty(true);
   }
 
-  /** Selecting a component jumps the parts index to that part's neighbourhood. */
+  /** Selecting a component jumps the parts index to that part's neighborhood. */
   function selectBomRow(item: BOMItem) {
     const next = selectedBomId === item.id ? null : item.id;
     setSelectedBomId(next);
@@ -268,7 +268,7 @@ export function WorkbenchLibraryView({ activeLib, modeSwitcher, viewSwitcher, li
   }
 
   const matCost   = bom.reduce((sum, i) => sum + i.qty * 24.5, 0);
-  const labourHrs = bom.length * 0.35;
+  const laborHrs = bom.length * 0.35;
   const isFixtureCfg = cfg.kind === 'fixture';
 
   // ── Assemblies index rendering ──────────────────────────────────────────────
@@ -295,7 +295,7 @@ export function WorkbenchLibraryView({ activeLib, modeSwitcher, viewSwitcher, li
         <span title={st.label} style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, color: st.color, background: st.bg, flexShrink: 0 }}>{st.symbol}</span>
         <button
           onClick={(e) => { e.stopPropagation(); setAsmFavs((prev) => { const n = new Set(prev); if (n.has(a.id)) n.delete(a.id); else n.add(a.id); return n; }); }}
-          aria-label={fav ? 'Remove favourite' : 'Add favourite'}
+          aria-label={fav ? 'Remove favorite' : 'Add favorite'}
           style={{ width: 18, height: 18, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
         >
           <Star size={10} fill={fav ? '#F59E0B' : 'none'} color={fav ? '#F59E0B' : '#D1D5DB'} />
@@ -436,7 +436,7 @@ export function WorkbenchLibraryView({ activeLib, modeSwitcher, viewSwitcher, li
           <RefreshCw size={10} color={selectedBomId ? '#6B7280' : '#D1D5DB'} />
         </button>
         <button onClick={() => setPartFavs((prev) => { const n = new Set(prev); if (n.has(pt.id)) n.delete(pt.id); else n.add(pt.id); return n; })}
-          aria-label={fav ? 'Remove favourite' : 'Add favourite'}
+          aria-label={fav ? 'Remove favorite' : 'Add favorite'}
           style={{ width: 18, height: 18, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <Star size={10} fill={fav ? '#F59E0B' : 'none'} color={fav ? '#F59E0B' : '#D1D5DB'} />
         </button>
@@ -665,7 +665,7 @@ export function WorkbenchLibraryView({ activeLib, modeSwitcher, viewSwitcher, li
         {[
           { label: 'Components', value: String(bom.length) },
           { label: 'Material', value: '$' + matCost.toFixed(2) },
-          { label: 'Labor', value: labourHrs.toFixed(1) + ' hrs' },
+          { label: 'Labor', value: laborHrs.toFixed(1) + ' hrs' },
         ].map(({ label, value }) => (
           <div key={label}>
             <div style={{ fontSize: 10, color: '#9CA3AF' }}>{label}</div>
