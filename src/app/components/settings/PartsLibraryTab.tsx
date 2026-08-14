@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Search, X, Star, ChevronRight, Plus, Columns3, List, Download, Upload, Trash2,
-  ArrowUp, ArrowDown,
+  ArrowUp, ArrowDown, Copy,
 } from 'lucide-react';
 import {
   Part, PART_CATEGORIES, MASTER_PARTS, LaborType, LABOR_TYPES,
@@ -10,12 +10,13 @@ import {
   laborTypeOf, laborHoursOf, laborCostOf, laborRateSourceOf, pricingSourceOf, partRecency,
 } from '../library/libraryData';
 import { COMPANY_LABOR_RATE } from '../../lib/costing';
+import { ORIGIN_HINT, ORIGIN_LABEL, copyName } from '../../lib/libraryOwnership';
 
 /**
  * Parts Library — the company's master item list.
  *
  * Parts only. Assemblies are a project-facing construct and live in Libraries;
- * this is the catalogue the assemblies draw from, so mixing them here would
+ * this is the catalog the assemblies draw from, so mixing them here would
  * blur which list an edit actually changes.
  *
  * Carries the two view modes the Column Browser settled on: the cascade for
@@ -52,7 +53,7 @@ type SortKey =
 /*
  * Column order is deliberate: thirteen columns do not fit the Settings content
  * column at any honest width, so the ones that get cut off are chosen rather than
- * left to chance. Price, the two labour sources and the labour cost sit inside
+ * left to chance. Price, the two labor sources and the labor cost sit inside
  * the fold — they are what this screen is for and one of them is editable in the
  * row. Manufacturer, BOM group and Unit are identifying detail and scroll.
  */
@@ -63,9 +64,9 @@ const TABLE_COLS: { key: SortKey | 'check' | 'fav'; label: string; align?: 'left
   { key: 'subcat',  label: 'Subcategory',        sortable: true },
   { key: 'price',   label: 'Material $', align: 'right', sortable: true },
   { key: 'psource', label: 'Pricing source',     sortable: true },
-  { key: 'hours',   label: 'Labour hours', align: 'right', sortable: true },
-  { key: 'lsource', label: 'Labour rate source', sortable: true },
-  { key: 'cost',    label: 'Labour cost',  align: 'right', sortable: true },
+  { key: 'hours',   label: 'Labor hours', align: 'right', sortable: true },
+  { key: 'lsource', label: 'Labor rate source', sortable: true },
+  { key: 'cost',    label: 'Labor cost',  align: 'right', sortable: true },
   { key: 'mfr',     label: 'Manufacturer',       sortable: true },
   { key: 'bom',     label: 'BOM group',          sortable: true },
   { key: 'unit',    label: 'Unit',               sortable: true },
@@ -86,8 +87,8 @@ const SORT_PRESETS: { id: string; label: string; key: SortKey; dir: 'asc' | 'des
   { id: 'cat',        label: 'Category A–Z',      key: 'cat',     dir: 'asc' },
   { id: 'price-desc', label: 'Material $ high–low', key: 'price', dir: 'desc' },
   { id: 'price-asc',  label: 'Material $ low–high', key: 'price', dir: 'asc' },
-  { id: 'hours-desc', label: 'Labour hours high–low', key: 'hours', dir: 'desc' },
-  { id: 'cost-desc',  label: 'Labour cost high–low',  key: 'cost',  dir: 'desc' },
+  { id: 'hours-desc', label: 'Labor hours high–low', key: 'hours', dir: 'desc' },
+  { id: 'cost-desc',  label: 'Labor cost high–low',  key: 'cost',  dir: 'desc' },
 ];
 
 const ALL = '__all__';
@@ -195,7 +196,7 @@ export function PartsLibraryTab() {
   const [favs, setFavs] = useState<Set<string>>(new Set(['pt-38', 'pt-4']));
   const [custom, setCustom] = useState<Part[]>([]);
 
-  /** Per-part edits to catalogue entries, keyed by id. */
+  /** Per-part edits to catalog entries, keyed by id. */
   const [overrides, setOverrides] = useState<Record<string, Partial<Part>>>({});
 
   const parts = useMemo(
@@ -219,7 +220,7 @@ export function PartsLibraryTab() {
   const [fCat, setFCat] = useState(ALL);
   const [fSubcat, setFSubcat] = useState(ALL);
   const [fPricing, setFPricing] = useState(ALL);
-  const [fLabour, setFLabour] = useState(ALL);
+  const [fLabor, setFLabor] = useState(ALL);
   const [fBom, setFBom] = useState(ALL);
   const [favsOnly, setFavsOnly] = useState(false);
 
@@ -228,17 +229,17 @@ export function PartsLibraryTab() {
     [parts],
   );
   /* Subcategories follow the chosen category — offering every subcategory in the
-     catalogue would mostly offer combinations that return nothing. */
+     catalog would mostly offer combinations that return nothing. */
   const filterSubcats = useMemo(() => {
     const pool = fCat === ALL ? parts : parts.filter((p) => p.cat === fCat);
     return [...new Set(pool.map((p) => p.subcat))].sort((a, b) => a.localeCompare(b));
   }, [parts, fCat]);
 
   const filterCount =
-    [fCat, fSubcat, fPricing, fLabour, fBom].filter((v) => v !== ALL).length + (favsOnly ? 1 : 0);
+    [fCat, fSubcat, fPricing, fLabor, fBom].filter((v) => v !== ALL).length + (favsOnly ? 1 : 0);
 
   function clearFilters() {
-    setFCat(ALL); setFSubcat(ALL); setFPricing(ALL); setFLabour(ALL); setFBom(ALL);
+    setFCat(ALL); setFSubcat(ALL); setFPricing(ALL); setFLabor(ALL); setFBom(ALL);
     setFavsOnly(false);
   }
 
@@ -246,7 +247,7 @@ export function PartsLibraryTab() {
     (fCat === ALL || p.cat === fCat)
     && (fSubcat === ALL || p.subcat === fSubcat)
     && (fPricing === ALL || pricingSourceOf(p) === fPricing)
-    && (fLabour === ALL || laborRateSourceOf(p) === fLabour)
+    && (fLabor === ALL || laborRateSourceOf(p) === fLabor)
     && (fBom === ALL || p.bomGroup === fBom)
     && (!favsOnly || favs.has(p.id));
 
@@ -256,12 +257,12 @@ export function PartsLibraryTab() {
    */
   const allParts = useMemo(
     () => parts.filter((p) => (!q || matches(p)) && passesFilters(p)),
-    [parts, q, fCat, fSubcat, fPricing, fLabour, fBom, favsOnly, favs],
+    [parts, q, fCat, fSubcat, fPricing, fLabor, fBom, favsOnly, favs],
   );
 
   const shown = mode === 'list' ? allParts : branchParts;
 
-  /** Table sort. Name ascending is the order the catalogue reads in by default. */
+  /** Table sort. Name ascending is the order the catalog reads in by default. */
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
 
   const toggleSort = (key: SortKey | 'check' | 'fav') => {
@@ -272,7 +273,7 @@ export function PartsLibraryTab() {
   const activePreset = SORT_PRESETS.find((s) => s.key === sort.key && s.dir === sort.dir)?.id ?? '';
 
   /**
-   * Newest first: the parts this company added, then the catalogue behind them.
+   * Newest first: the parts this company added, then the catalog behind them.
    *
    * Sorted ascending like every other key, so this returns a rank where *lower
    * is newer* — the shared `partRecency` counts the other way, and inverting it
@@ -331,7 +332,7 @@ export function PartsLibraryTab() {
   function bulkLaborSource(src: LaborRateSource) {
     const ids = pickedShown.map((p) => p.id);
     ids.forEach((id) => update(id, { laborRateSource: src, laborUnit: undefined }));
-    toast.success('Labour rate source set', {
+    toast.success('Labor rate source set', {
       description: `${ids.length} part${ids.length === 1 ? '' : 's'} now read hours from ${src}.`,
     });
   }
@@ -347,7 +348,7 @@ export function PartsLibraryTab() {
   function bulkDelete() {
     const mine = pickedShown.filter(isCustom).map((p) => p.id);
     if (!mine.length) {
-      toast.info('Catalogue parts cannot be deleted', {
+      toast.info('Catalog parts cannot be deleted', {
         description: 'Only parts this company added can be removed.',
       });
       return;
@@ -389,13 +390,16 @@ export function PartsLibraryTab() {
   }
 
   /**
-   * Edit a part, custom or catalogue.
+   * Edit a part, company-owned or backbone.
    *
-   * Catalogue edits land in `overrides` rather than mutating `MASTER_PARTS`: the
-   * company's own install hours are exactly what an estimator needs to change on
-   * a catalogue part, and the alternative — a duplicate part existing only to
-   * carry different hours — is how a parts library becomes unusable. The
-   * catalogue itself stays pristine, so a future import can still replace it.
+   * **The BrightPoint backbone is never mutated.** `MASTER_PARTS` is the global
+   * catalog every company sees; an edit to one of its rows is stored in this
+   * company's `overrides` map and applied on read, so the shared record is
+   * untouched and no other account can see the change. Company parts in `custom`
+   * are edited directly — they are already this company's.
+   *
+   * Copy-on-write rather than permission checks: the guarantee then holds because
+   * of where the data goes, not because every future caller remembers to check.
    */
   function update(id: string, patch: Partial<Part>) {
     if (custom.some((c) => c.id === id)) {
@@ -511,14 +515,14 @@ export function PartsLibraryTab() {
             options={filterSubcats} onChange={setFSubcat} />
           <FilterSelect label="Pricing source" value={fPricing} width={140}
             options={PRICING_SOURCES} onChange={setFPricing} />
-          <FilterSelect label="Labour rate source" value={fLabour} width={104}
-            options={LABOR_RATE_SOURCES} onChange={setFLabour} />
+          <FilterSelect label="Labor rate source" value={fLabor} width={104}
+            options={LABOR_RATE_SOURCES} onChange={setFLabor} />
           <FilterSelect label="BOM group" value={fBom} width={106}
             options={bomGroups} onChange={setFBom} />
 
           <button
             onClick={() => setFavsOnly((v) => !v)}
-            title="Show only favourites"
+            title="Show only favorites"
             style={{
               height: 28, padding: '0 9px', borderRadius: 6, cursor: 'pointer',
               border: `1px solid ${favsOnly ? '#FDE68A' : '#E5E7EB'}`,
@@ -528,7 +532,7 @@ export function PartsLibraryTab() {
             }}
           >
             <Star size={11} fill={favsOnly ? '#F59E0B' : 'none'} color={favsOnly ? '#F59E0B' : '#9CA3AF'} />
-            Favourites
+            Favorites
           </button>
 
           {filterCount > 0 && (
@@ -575,11 +579,11 @@ export function PartsLibraryTab() {
           </span>
 
           <label style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-            <span style={{ fontSize: 10.5, color: '#6B7280', whiteSpace: 'nowrap' }}>Labour rate source</span>
+            <span style={{ fontSize: 10.5, color: '#6B7280', whiteSpace: 'nowrap' }}>Labor rate source</span>
             <select
               value=""
               onChange={(e) => { if (e.target.value) bulkLaborSource(e.target.value as LaborRateSource); }}
-              aria-label="Set labour rate source for selected parts"
+              aria-label="Set labor rate source for selected parts"
               style={{ height: 28, width: 128, padding: '0 6px', border: '1px solid #BFDBFE', borderRadius: 6, fontSize: 11, background: 'white', color: '#374151', outline: 'none', cursor: 'pointer' }}
             >
               <option value="">Set to…</option>
@@ -588,10 +592,38 @@ export function PartsLibraryTab() {
           </label>
 
           <button onClick={() => bulkFav(true)} style={{ height: 28, padding: '0 9px', border: '1px solid #E5E7EB', borderRadius: 6, background: 'white', fontSize: 11, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            <Star size={11} color="#F59E0B" /> Favourite
+            <Star size={11} color="#F59E0B" /> Favorite
+          </button>
+          {/*
+            Duplicate into this company's library.
+            ------------------------------------
+            The explicit form of the copy-on-write rule: a company that wants its
+            own version of a BrightPoint part takes a copy and owns it outright,
+            rather than accumulating overrides against a row it does not control.
+          */}
+          <button
+            onClick={() => {
+              const copies = pickedShown.map((pt, i) => ({
+                ...pt,
+                ...(overrides[pt.id] ?? {}),
+                id: `pt-custom-copy-${custom.length + i + 1}`,
+                name: copyName(pt.name),
+                code: `${pt.code}-C`,
+                pricingSource: 'Manual entry' as const,
+              }));
+              setCustom((prev) => [...prev, ...copies]);
+              setSort({ key: 'recent', dir: 'asc' });
+              toast.success(`${copies.length} part${copies.length === 1 ? '' : 's'} duplicated`, {
+                description: 'The copies belong to your company. The BrightPoint records are unchanged.',
+              });
+            }}
+            title="Copy into your company library — the BrightPoint records stay untouched"
+            style={{ height: 28, padding: '0 9px', border: '1px solid #BFDBFE', borderRadius: 6, background: 'white', fontSize: 11, color: '#1D4ED8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
+          >
+            <Copy size={11} /> Duplicate to company
           </button>
           <button onClick={() => bulkFav(false)} style={{ height: 28, padding: '0 9px', border: '1px solid #E5E7EB', borderRadius: 6, background: 'white', fontSize: 11, color: '#374151', cursor: 'pointer', flexShrink: 0 }}>
-            Unfavourite
+            Unfavorite
           </button>
           <button onClick={bulkDelete} style={{ height: 28, padding: '0 9px', border: '1px solid #FECACA', borderRadius: 6, background: 'white', fontSize: 11, color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <Trash2 size={11} /> Remove
@@ -650,7 +682,7 @@ export function PartsLibraryTab() {
                       right={
                         <button
                           onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }}
-                          aria-label={favs.has(p.id) ? 'Remove favourite' : 'Add favourite'}
+                          aria-label={favs.has(p.id) ? 'Remove favorite' : 'Add favorite'}
                           style={{ width: 20, height: 20, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                         >
                           <Star size={11} fill={favs.has(p.id) ? '#F59E0B' : 'none'} color={favs.has(p.id) ? '#F59E0B' : '#D1D5DB'} />
@@ -665,7 +697,7 @@ export function PartsLibraryTab() {
              * Table view — every part, whatever the cascade is pointing at.
              * ------------------------------------------------------------
              * A real table, not stacked rows: the estimator is comparing parts
-             * across category, labour class and price, and comparison is what
+             * across category, labor class and price, and comparison is what
              * columns are for. Fixed track widths so the header and body cannot
              * resolve a few pixels apart, with the whole thing scrolling sideways
              * rather than each column shrinking to illegibility.
@@ -705,7 +737,7 @@ export function PartsLibraryTab() {
                         }}
                       >
                         {/* Clipped, never spilling: a header wide enough to overrun
-                            its track would otherwise print over its neighbour. */}
+                            its track would otherwise print over its neighbor. */}
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                           {c.label}
                         </span>
@@ -749,7 +781,7 @@ export function PartsLibraryTab() {
                       {/*
                         Part — description over code, because the code is the lookup
                         key. Both are editable on a part this company added and plain
-                        text on a catalogue entry, which is the same rule the detail
+                        text on a catalog entry, which is the same rule the detail
                         panel used before it was removed from this view.
                       */}
                       <span style={{ minWidth: 0 }}>
@@ -773,8 +805,27 @@ export function PartsLibraryTab() {
                             <span title={p.name} style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {p.name}
                             </span>
-                            <span style={{ display: 'block', fontSize: 10, color: '#9CA3AF', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {p.code}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#9CA3AF', fontFamily: MONO, overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.code}</span>
+                              {/* Which catalog this row belongs to. A customized backbone
+                                  part reads Company, because that is whose figure it is. */}
+                              {(() => {
+                                const owned = mine || !!overrides[p.id];
+                                const origin = owned ? 'company' : 'backbone';
+                                return (
+                                  <span
+                                    title={ORIGIN_HINT[origin]}
+                                    style={{
+                                      fontSize: 8.5, fontWeight: 700, letterSpacing: '0.03em',
+                                      padding: '0 4px', borderRadius: 3, flexShrink: 0,
+                                      color: owned ? '#1D4ED8' : '#9CA3AF',
+                                      background: owned ? '#EFF6FF' : '#F3F4F6',
+                                    }}
+                                  >
+                                    {ORIGIN_LABEL[origin]}
+                                  </span>
+                                );
+                              })()}
                             </span>
                           </>
                         )}
@@ -812,7 +863,7 @@ export function PartsLibraryTab() {
                       {/*
                         Hours stay editable with the detail panel gone — a company's
                         own install time is the field an estimator most needs on a
-                        catalogue part, and the alternative is a duplicate part that
+                        catalog part, and the alternative is a duplicate part that
                         exists only to carry different hours.
                       */}
                       <input
@@ -824,7 +875,7 @@ export function PartsLibraryTab() {
                           // reading as a deliberate zero.
                           if (Number.isFinite(n)) update(p.id, { laborUnit: n });
                         }}
-                        aria-label={`Labour hours for ${p.name}`}
+                        aria-label={`Labor hours for ${p.name}`}
                         title={p.laborUnit !== undefined
                           ? `Set on this part. The ${laborTypeOf(p)} standard at ${src} is ${(laborHoursOf({ ...p, laborUnit: undefined })).toFixed(2)}.`
                           : `${laborTypeOf(p)} standard, read at ${src}`}
@@ -843,7 +894,7 @@ export function PartsLibraryTab() {
                           // Drop a hand-typed figure so the new column is what shows.
                           laborUnit: undefined,
                         })}
-                        aria-label={`Labour rate source for ${p.name}`}
+                        aria-label={`Labor rate source for ${p.name}`}
                         title={LABOR_SOURCE_NOTE[src]}
                         style={{
                           width: '100%', height: 26, padding: '0 4px', borderRadius: 6,
@@ -892,7 +943,7 @@ export function PartsLibraryTab() {
 
                       <button
                         onClick={() => toggleFav(p.id)}
-                        aria-label={favs.has(p.id) ? `Remove ${p.name} from favourites` : `Add ${p.name} to favourites`}
+                        aria-label={favs.has(p.id) ? `Remove ${p.name} from favorites` : `Add ${p.name} to favorites`}
                         style={{ width: 20, height: 20, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Star size={11} fill={favs.has(p.id) ? '#F59E0B' : 'none'} color={favs.has(p.id) ? '#F59E0B' : '#D1D5DB'} />
@@ -932,7 +983,7 @@ export function PartsLibraryTab() {
           {!selected ? (
             <div style={{ padding: 28, textAlign: 'center' }}>
               <Search size={26} color="#E5E7EB" />
-              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 10 }}>Select a part to see its catalogue detail.</div>
+              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 10 }}>Select a part to see its catalog detail.</div>
             </div>
           ) : (
             <div style={{ padding: 14 }}>
@@ -965,14 +1016,14 @@ export function PartsLibraryTab() {
 
               <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', marginTop: 12 }}>
                 {/*
-                  Labour is editable on every part, not only custom ones: a
+                  Labor is editable on every part, not only custom ones: a
                   company's own install hours are exactly the thing an estimator
-                  needs to tune on a catalogue part, and the alternative is a
+                  needs to tune on a catalog part, and the alternative is a
                   duplicate part existing only to carry different hours.
                 */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 78px', gap: 8 }}>
                   <label>
-                    <span style={{ ...HEAD, display: 'block', marginBottom: 4 }}>Labour type</span>
+                    <span style={{ ...HEAD, display: 'block', marginBottom: 4 }}>Labor type</span>
                     <select
                       value={laborTypeOf(selected)}
                       onChange={(e) => update(selected.id, { laborType: e.target.value as LaborType, laborUnit: undefined })}
@@ -991,7 +1042,7 @@ export function PartsLibraryTab() {
                       onChange={(e) => {
                         const n = parseFloat(e.target.value);
                         // Only a real number is an override; a cleared field keeps
-                        // the labour type's standard rather than reading as zero.
+                        // the labor type's standard rather than reading as zero.
                         if (Number.isFinite(n)) update(selected.id, { laborUnit: n });
                       }}
                       style={{ ...field, fontFamily: MONO, textAlign: 'right', background: 'white' }}
@@ -1011,7 +1062,7 @@ export function PartsLibraryTab() {
                   { label: 'Category', value: selected.cat },
                   { label: 'Subcategory', value: selected.subcat },
                   { label: 'BOM group', value: selected.bomGroup },
-                  { label: 'Favourite', value: favs.has(selected.id) ? 'Yes' : 'No' },
+                  { label: 'Favorite', value: favs.has(selected.id) ? 'Yes' : 'No' },
                 ].map((r, i) => (
                   <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 11px', borderTop: i === 0 ? 'none' : '1px solid #F3F4F6' }}>
                     <span style={{ fontSize: 11, color: '#6B7280', flex: 1 }}>{r.label}</span>
@@ -1022,7 +1073,7 @@ export function PartsLibraryTab() {
 
               {!isCustom(selected) && (
                 <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 10, lineHeight: '15px' }}>
-                  Catalogue parts are read-only here. Add a new part to create a company-specific entry.
+                  Catalog parts are read-only here. Add a new part to create a company-specific entry.
                 </div>
               )}
             </div>

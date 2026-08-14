@@ -54,7 +54,7 @@ const STATUS_CFG: Record<Status, { label: string; color: string; bg: string }> =
   draft: { label: "Draft", color: "#6B7280", bg: "#F3F4F6" },
   drawings: { label: "Drawings processing", color: "#2563EB", bg: "#EFF6FF" },
   takeoff: { label: "Takeoff in progress", color: "#7C3AED", bg: "#F5F3FF" },
-  pricing: { label: "Pricing required", color: "#D97706", bg: "#FFFBEB" },
+  pricing: { label: "Extensions required", color: "#D97706", bg: "#FFFBEB" },
   review: { label: "Ready for review", color: "#0284C7", bg: "#F0F9FF" },
   approved: { label: "Approved", color: "#16A34A", bg: "#F0FDF4" },
   submitted: { label: "Submitted", color: "#6B7280", bg: "#F3F4F6" },

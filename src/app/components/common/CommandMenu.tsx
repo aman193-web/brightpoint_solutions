@@ -37,7 +37,7 @@ function buildResults(navigate: (page: string) => void): CommandResult[] {
     { id: 'n-dashboard',  category: 'navigation', label: 'Dashboard',          icon: <LayoutDashboard size={14} />, shortcut: 'G D', onSelect: () => navigate('dashboard') },
     { id: 'n-projects',   category: 'navigation', label: 'Projects',            icon: <FolderOpen size={14} />,     shortcut: 'G P', onSelect: () => navigate('projects') },
     { id: 'n-estimates',  category: 'navigation', label: 'Bid builder',    icon: <FileText size={14} />,       shortcut: 'G E', onSelect: () => navigate('bid-builder') },
-    { id: 'n-pricing',    category: 'navigation', label: 'Pricing workspace',   icon: <Hash size={14} />,           onSelect: () => navigate('pricing') },
+    { id: 'n-pricing',    category: 'navigation', label: 'Extensions workspace',   icon: <Hash size={14} />,           onSelect: () => navigate('pricing') },
     { id: 'n-proposal',   category: 'navigation', label: 'Proposal center',     icon: <Send size={14} />,           onSelect: () => navigate('proposal-center') },
     { id: 'n-libraries',  category: 'navigation', label: 'Libraries',           icon: <Layers size={14} />,         shortcut: 'G L', onSelect: () => navigate('libraries') },
     { id: 'n-reports',    category: 'navigation', label: 'Reports',             icon: <BarChart2 size={14} />,      shortcut: 'G R', onSelect: () => navigate('reports') },
@@ -65,7 +65,7 @@ function buildResults(navigate: (page: string) => void): CommandResult[] {
 }
 
 const RECENT_PAGES = [
-  { label: 'Dollar Tree #1842 — Pricing workspace', page: 'pricing' },
+  { label: 'Dollar Tree #1842 — Extensions workspace', page: 'pricing' },
   { label: 'BID-2026-0117 — Bid builder', page: 'bid-builder' },
   { label: 'Libraries — Assembly browser', page: 'libraries' },
 ];

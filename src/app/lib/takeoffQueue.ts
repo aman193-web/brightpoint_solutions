@@ -20,7 +20,7 @@ export interface TakeoffQueueEntry {
   count: number;
   componentCount: number;
   materialCost: number;
-  labourHours: number;
+  laborHours: number;
   /** Sheet the estimator intends to place it on. */
   sheet: string;
   /**
@@ -87,6 +87,6 @@ export function queueTotals(entries: TakeoffQueueEntry[]) {
     assemblies: entries.length,
     placements: entries.reduce((s, e) => s + e.count, 0),
     material: entries.reduce((s, e) => s + e.materialCost * e.count, 0),
-    hours: entries.reduce((s, e) => s + e.labourHours * e.count, 0),
+    hours: entries.reduce((s, e) => s + e.laborHours * e.count, 0),
   };
 }

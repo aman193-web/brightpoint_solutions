@@ -34,7 +34,7 @@ import { PartsLibraryPanel } from './PartsLibraryPanel';
  * about how it is installed. Every answer narrows what comes next: the filters
  * decide which wiring methods exist, the wiring method decides whether raceway
  * is even a question, and the parts offered at each step are only those the
- * conditions permit. Nobody browses the catalogue to build an assembly.
+ * conditions permit. Nobody browses the catalog to build an assembly.
  *
  * The bill of material is derived by `deriveBom()` — the same engine the
  * Workbench and the old guided builder use — plus whatever parts and add-ons
@@ -258,7 +258,7 @@ function RolePicker({ choice, selectedId, onSelect, search }: {
       </div>
       {parts.length === 0 ? (
         <div style={{ fontSize: 11, color: '#9CA3AF', padding: '8px 10px', border: '1px dashed #E5E7EB', borderRadius: 7 }}>
-          Nothing in the catalogue matches this role under the current filters.
+          Nothing in the catalog matches this role under the current filters.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -1366,7 +1366,7 @@ export function AssemblyBuilderView({
 
               Matched on code, falling back to the name. A configured row carries
               a synthetic code (`WIRE-CFG`) because it came out of the parametric
-              build rather than off a catalogue row, so code alone would leave
+              build rather than off a catalog row, so code alone would leave
               exactly the rows an estimator most wants to trace unlinked — and
               those rows do name the real part.
             */
@@ -1387,7 +1387,7 @@ export function AssemblyBuilderView({
           Materials. The outer two named themselves; this one did not, which left
           the middle of the screen as the only unlabelled thing on it.
         */}
-        <div className="bp-lib-centre" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div className="bp-lib-center" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ padding: '10px 16px', background: 'white', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', flex: 1 }}>Configure</span>
             <span style={{ fontSize: 11, color: '#9CA3AF' }}>

@@ -1053,7 +1053,7 @@ function PartsLibraryPanel({
                   </button>
                   <button
                     onClick={() => onToggleFavorite(pt.id)}
-                    aria-label={fav ? 'Remove favourite' : 'Add favourite'}
+                    aria-label={fav ? 'Remove favorite' : 'Add favorite'}
                     style={{ width: 22, height: 22, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 'auto' }}
                   >
                     <Star size={11} fill={fav ? '#F59E0B' : 'none'} color={fav ? '#F59E0B' : '#D1D5DB'} />
@@ -1435,8 +1435,8 @@ function BuilderLibraryView({ libraries, setLibraries, activeLibId, setActiveLib
         )}
       </div>
 
-      {/* ── Centre panel ── */}
-      <div className="bp-lib-centre" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+      {/* ── Center panel ── */}
+      <div className="bp-lib-center" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         <div className="bp-toolbar" style={{ padding: '10px 16px', background: 'white', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
           <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap', overflow: 'hidden' }}>
             <span style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>{CATEGORIES.find((c) => c.code === activeCategory)?.name}</span>

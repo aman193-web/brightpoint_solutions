@@ -71,7 +71,7 @@ export interface QuoteRow {
   reference: string;
   costCode: string;
   /** Optional. A supplier quote usually carries no internal hours. */
-  labourHours: number;
+  laborHours: number;
   taxable: boolean;
   unitCost: number;
   /** Applied to unit cost — escalation, freight, or a negotiated discount. */
@@ -87,28 +87,28 @@ export interface QuoteRow {
 export const SEED_QUOTE_ROWS: QuoteRow[] = [
   {
     id: 'q1', included: true, quoteType: 'Fixtures', supplier: 'Rexel USA',
-    reference: 'QT-2026-0891', costCode: '26-50-00 Lighting', labourHours: 0, taxable: true,
+    reference: 'QT-2026-0891', costCode: '26-50-00 Lighting', laborHours: 0, taxable: true,
     unitCost: 668.80, multiplier: 1, attachment: 'QT-2026-0891.pdf',
     expiration: '2026-08-31', status: 'accepted', markup: 5,
     notes: 'Troffers and MC cable, freight included to site.',
   },
   {
     id: 'q2', included: false, quoteType: 'Fixtures', supplier: 'Graybar Electric',
-    reference: 'GBR-4429', costCode: '26-50-00 Lighting', labourHours: 0, taxable: true,
+    reference: 'GBR-4429', costCode: '26-50-00 Lighting', laborHours: 0, taxable: true,
     unitCost: 510.00, multiplier: 1,
     expiration: '2026-08-15', status: 'under-review', markup: 5,
     notes: 'Alternate lighting package — awaiting cut sheets.',
   },
   {
     id: 'q3', included: true, quoteType: 'Switchgear', supplier: 'Schneider Electric',
-    reference: 'SE-88104', costCode: '26-24-00 Switchboards', labourHours: 0, taxable: true,
+    reference: 'SE-88104', costCode: '26-24-00 Switchboards', laborHours: 0, taxable: true,
     unitCost: 4250.00, multiplier: 1.04, attachment: 'SE-88104.pdf',
     expiration: '2026-09-12', status: 'received', markup: 8,
     notes: '4% escalation applied per supplier letter dated 12 Jul.',
   },
   {
     id: 'q4', included: false, quoteType: 'Fire Alarm Equipment', supplier: 'Notifier',
-    reference: 'NOT-2211', costCode: '28-30-00 Fire Detection', labourHours: 0, taxable: true,
+    reference: 'NOT-2211', costCode: '28-30-00 Fire Detection', laborHours: 0, taxable: true,
     unitCost: 2180.00, multiplier: 1,
     expiration: '2026-07-20', status: 'received', markup: 8,
   },
@@ -133,7 +133,7 @@ export interface SubRow {
   subcontractor: string;
   costCode: string;
   /**
-   * No labour hours. Subcontracted scope is quoted as a lump sum, so internal
+   * No labor hours. Subcontracted scope is quoted as a lump sum, so internal
    * hours were a McCormick habit rather than a number anyone filled in.
    */
   taxable: boolean;
@@ -234,7 +234,7 @@ export interface EquipmentRow {
   equipment: string;
   supplier: string;
   costCode: string;
-  labourHours: number;
+  laborHours: number;
   taxable: boolean;
   rate: number;
   period: string;
@@ -247,9 +247,9 @@ export interface EquipmentRow {
 }
 
 export const SEED_EQUIPMENT: EquipmentRow[] = [
-  { id: 'e1', included: true,  equipment: '19 ft Scissor Lift', supplier: 'Coates Hire', costCode: '01-50-00 Temp Facilities', labourHours: 0, taxable: true, rate: 168, period: 'Week', quantity: 1, duration: 3, deliveryPickup: 240, attachment: 'coates-rate-card.pdf', notes: 'Narrow-aisle electric, indoor rated.' },
-  { id: 'e2', included: false, equipment: '40 ft Boom Lift',    supplier: 'Kennards',    costCode: '01-50-00 Temp Facilities', labourHours: 0, taxable: true, rate: 420, period: 'Week', quantity: 1, duration: 1, deliveryPickup: 380 },
-  { id: 'e3', included: false, equipment: 'Core Drill Rig',     supplier: 'Kennards',    costCode: '26-05-00 Common Work',     labourHours: 0, taxable: true, rate: 95,  period: 'Day',  quantity: 1, duration: 2 },
+  { id: 'e1', included: true,  equipment: '19 ft Scissor Lift', supplier: 'Coates Hire', costCode: '01-50-00 Temp Facilities', laborHours: 0, taxable: true, rate: 168, period: 'Week', quantity: 1, duration: 3, deliveryPickup: 240, attachment: 'coates-rate-card.pdf', notes: 'Narrow-aisle electric, indoor rated.' },
+  { id: 'e2', included: false, equipment: '40 ft Boom Lift',    supplier: 'Kennards',    costCode: '01-50-00 Temp Facilities', laborHours: 0, taxable: true, rate: 420, period: 'Week', quantity: 1, duration: 1, deliveryPickup: 380 },
+  { id: 'e3', included: false, equipment: 'Core Drill Rig',     supplier: 'Kennards',    costCode: '26-05-00 Common Work',     laborHours: 0, taxable: true, rate: 95,  period: 'Day',  quantity: 1, duration: 2 },
 ];
 
 // ─── Bond ─────────────────────────────────────────────────────────────────────

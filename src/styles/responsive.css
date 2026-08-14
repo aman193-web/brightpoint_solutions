@@ -3,7 +3,7 @@
  *
  * The feature screens are authored with inline styles (the existing house style),
  * which cannot express media queries. These classes carry the breakpoint
- * behaviour only — all color / spacing values come from the same design tokens
+ * behavior only — all color / spacing values come from the same design tokens
  * used inline (see theme.css).
  *
  * Breakpoints
@@ -85,7 +85,7 @@
     overflow-y: auto !important;
   }
   .bp-lib-left,
-  .bp-lib-centre,
+  .bp-lib-center,
   .bp-lib-right {
     width: 100% !important;
     min-width: 0 !important;
@@ -98,7 +98,7 @@
   .bp-lib-right {
     overflow: visible !important;
   }
-  .bp-lib-centre {
+  .bp-lib-center {
     min-height: 420px;
   }
   .bp-lib-scroll {

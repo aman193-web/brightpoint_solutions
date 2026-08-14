@@ -27,7 +27,7 @@ const INITIAL_STAGES: ProcessingStage[] = [
   { id: "titles", label: "Detecting drawing titles", detail: "Reading title blocks and annotations", status: "waiting", totalPages: 65 },
   { id: "disciplines", label: "Detecting disciplines", detail: "Classifying each page by trade", status: "waiting", totalPages: 65 },
   { id: "scales", label: "Detecting page scales", detail: "Identifying drawing scales and calibration data", status: "waiting", totalPages: 65 },
-  { id: "workspace", label: "Preparing the takeoff workspace", detail: "Organising pages and building the review index", status: "waiting" },
+  { id: "workspace", label: "Preparing the takeoff workspace", detail: "Organizing pages and building the review index", status: "waiting" },
 ];
 
 interface DrawingsProcessingProps {
@@ -309,7 +309,7 @@ export function DrawingsProcessing({ onComplete, onBack, projectName = "Dollar T
 
       {/* Info note */}
       <p style={{ fontSize: 12, color: "#9CA3AF", marginTop: 24, textAlign: "center", maxWidth: 440 }}>
-        AI is analysing each page. Results are shown for review before being applied. You can correct any detection manually.
+        AI is analyzing each page. Results are shown for review before being applied. You can correct any detection manually.
       </p>
     </div>
   );

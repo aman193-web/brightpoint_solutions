@@ -51,7 +51,7 @@ export function LiveBOM({ items, assemblyName, onSave, onItemsChange, selectedId
   }, [groups]);
 
   const matCost      = items.reduce((s, i) => s + i.qty * 24.5, 0);
-  const labourHrs    = items.length * 0.35;
+  const laborHrs    = items.length * 0.35;
   const missingCount = items.filter((i) => i.priceStatus === 'missing').length;
 
   function updateItem(id: string, patch: Partial<BOMItem>) {
@@ -142,7 +142,7 @@ export function LiveBOM({ items, assemblyName, onSave, onItemsChange, selectedId
               </div>
             </div>
           ))}
-          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Audit trail and price history are available via the Pricing workspace.</div>
+          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Audit trail and price history are available via the Extensions workspace.</div>
         </div>
       )}
 
@@ -273,7 +273,7 @@ export function LiveBOM({ items, assemblyName, onSave, onItemsChange, selectedId
         {[
           { label: 'Components',    value: String(items.length)          },
           { label: 'Material cost', value: '$' + matCost.toFixed(2),  mono: true },
-          { label: 'Labor hours',   value: labourHrs.toFixed(1) + ' hrs', mono: true },
+          { label: 'Labor hours',   value: laborHrs.toFixed(1) + ' hrs', mono: true },
         ].map(({ label, value, mono }) => (
           <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
             <span style={{ color: '#6B7280' }}>{label}</span>

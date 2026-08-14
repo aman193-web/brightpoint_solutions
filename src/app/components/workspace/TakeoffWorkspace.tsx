@@ -28,6 +28,8 @@ import {
 import { TakeoffListPanel, DockMode } from './TakeoffListPanel';
 import { FloatingFrame, FloatRect, DockState, UndockButton, CollapsedRail } from './FloatingFrame';
 import { ManualTakeoffPanel } from './ManualTakeoffPanel';
+import { AssemblyListPanel } from './AssemblyListPanel';
+import { QuantityPrompt, QuantityPromptTarget } from './QuantityPrompt';
 import {
   ALL_ASSEMBLIES, MASTER_PARTS, categoryOf, defaultMeasureType,
 } from '../library/libraryData';
@@ -508,11 +510,11 @@ function LinearPathEl({ path, isSelected, onClick }: { path: LinearPath; isSelec
         const dx = nx.x - pt.x;
         const dy = nx.y - pt.y;
         const pixels = Math.sqrt(dx * dx + dy * dy);
-        const metres = ((pixels * 54) / 1080).toFixed(1);
+        const meters = ((pixels * 54) / 1080).toFixed(1);
         return (
           <g key={i}>
             <rect x={mx - 20} y={my - 10} width={40} height={17} rx={3} fill="white" stroke={color} strokeWidth={0.8} />
-            <text x={mx} y={my + 1} fontSize={8.5} fontFamily="'IBM Plex Mono', monospace" fill={color} textAnchor="middle" dominantBaseline="central">{metres}m</text>
+            <text x={mx} y={my + 1} fontSize={8.5} fontFamily="'IBM Plex Mono', monospace" fill={color} textAnchor="middle" dominantBaseline="central">{meters}m</text>
           </g>
         );
       })}
@@ -695,7 +697,7 @@ function PageDefaultNote({ groups, pageDefault, page }: {
 /**
  * Manage Defaults — every page's default classification in one table.
  *
- * Per-page rather than global because a drawing set is organised by sheet, and
+ * Per-page rather than global because a drawing set is organized by sheet, and
  * setting them one at a time from the canvas is the tedium this removes.
  */
 function ManageDefaultsModal({ groups, pages, defaults, onSet, onClear, onClose }: {
@@ -1102,9 +1104,9 @@ const toolBtn = {
 /**
  * How an assembly category reads on the drawing.
  *
- * Colour carries meaning on a takeoff — an estimator scanning a sheet tells
+ * Color carries meaning on a takeoff — an estimator scanning a sheet tells
  * lighting from power by hue before reading a label — so a placed marker takes the
- * colour of what it is, not of whatever was hardcoded.
+ * color of what it is, not of whatever was hardcoded.
  */
 const DISC_FOR_CAT: Record<string, string> = {
   Fixtures: 'lighting', Devices: 'power', Raceway: 'power',
@@ -1608,7 +1610,7 @@ function LeftPanel({
   /** groupId → valueId. Empty means no filter on that dimension. */
   clsFilter: Classification;
   onClsFilter: (next: Classification) => void;
-  /** Grouping key: a category group id, or 'discipline' for the original behaviour. */
+  /** Grouping key: a category group id, or 'discipline' for the original behavior. */
   groupBy: string;
   onGroupBy: (key: string) => void;
   /** What the estimator is counting — owned by the workspace, used by the canvas. */
@@ -1913,14 +1915,31 @@ function ClassificationSection({ groups, cls, overridden, pageDefault, onChange,
   );
 }
 
+export type InspectorTab = 'properties' | 'assemblies' | 'parts' | 'pricing' | 'ai-review';
+
+/**
+ * The inspector's tabs, in working order.
+ *
+ * Labels are decoupled from keys deliberately: `parts` shows the selected item's
+ * assembly parts and `pricing` is the Extensions step, and neither reads as its
+ * key. Capitalizing the key was how "Pricing" survived the rename once already.
+ */
+const INSPECTOR_TABS: { key: InspectorTab; label: string }[] = [
+  { key: 'properties', label: 'Properties' },
+  { key: 'assemblies', label: 'Assembly List' },
+  { key: 'parts', label: 'Parts' },
+  { key: 'pricing', label: 'Extensions' },
+  { key: 'ai-review', label: 'AI Review' },
+];
+
 function RightInspector({
   collapsed, onToggle, tab, onTabChange, selectedMarker, selectedPath, markers, onMarkerUpdate, onChangeAssembly, onUndock,
-  groups, pageDefault, onClsChange, onClsRevert,
+  groups, pageDefault, onClsChange, onClsRevert, records, onSelectAssembly,
 }: {
   collapsed: boolean;
   onToggle: () => void;
-  tab: 'properties' | 'assembly' | 'pricing' | 'ai-review';
-  onTabChange: (t: 'properties' | 'assembly' | 'pricing' | 'ai-review') => void;
+  tab: InspectorTab;
+  onTabChange: (t: InspectorTab) => void;
   selectedMarker: CountMarker | null;
   selectedPath: LinearPath | null;
   markers: CountMarker[];
@@ -1932,6 +1951,10 @@ function RightInspector({
   onClsRevert: () => void;
   /** Float this panel. Absent when it is already floating. */
   onUndock?: () => void;
+  /** Feeds the Assembly List tab — the same records the Takeoff List shows. */
+  records: TakeoffRecord[];
+  /** Picking an assembly focuses its records in the Takeoff List. */
+  onSelectAssembly: (name: string) => void;
 }) {
   const [aiItemStates, setAIItemStates] = useState<Record<string, 'pending' | 'approved' | 'rejected'>>({});
   const [waste, setWaste] = useState('5');
@@ -1968,14 +1991,41 @@ function RightInspector({
           {/* Tab strip, with the undock handle beside the tabs. */}
           <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
             {onUndock && <span style={{ paddingLeft: 4 }}><UndockButton onUndock={onUndock} label="Properties panel" /></span>}
-            {(['properties', 'assembly', 'pricing', 'ai-review'] as const).map(t => (
-              <button key={t} onClick={() => onTabChange(t)} style={{ flex: 1, height: 38, border: 'none', backgroundColor: 'transparent', cursor: 'pointer', fontSize: t === 'ai-review' ? 9.5 : 10.5, fontWeight: tab === t ? 600 : 400, color: tab === t ? '#2563EB' : '#6B7280', borderBottom: tab === t ? '2px solid #2563EB' : '2px solid transparent', textTransform: 'capitalize' }}>
-                {t === 'ai-review' ? 'AI Review' : t.charAt(0).toUpperCase() + t.slice(1)}
+            {/*
+              Five tabs, in the order the estimator works: what is selected, what
+              the takeoff is made of, what that assembly contains, what it costs,
+              what the AI wants reviewed. The keys are internal — 'parts' shows the
+              selected item's assembly parts, 'pricing' is labeled Extensions.
+            */}
+            {INSPECTOR_TABS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => onTabChange(key)}
+                title={key === 'assemblies' ? 'Every assembly in this takeoff, with its running quantity' : undefined}
+                /*
+                  `1 1 auto`, not `flex: 1`. Equal thirds truncated "Assembly List"
+                  by 5px while "Parts" sat on 37px of slack; sizing from content
+                  spreads the spare width where the label actually needs it.
+                */
+                style={{ flex: '1 1 auto', minWidth: 0, height: 38, padding: '0 4px', border: 'none', backgroundColor: 'transparent', cursor: 'pointer', fontSize: 9.5, fontWeight: tab === key ? 600 : 400, color: tab === key ? '#2563EB' : '#6B7280', borderBottom: tab === key ? '2px solid #2563EB' : '2px solid transparent', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+              >
+                {label}
               </button>
             ))}
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          {/*
+            The Assembly List is its own flex child rather than a block inside the
+            scrolling container above: it scrolls its own rows and pins its own
+            totals footer, which a parent that also scrolls would fight over.
+          */}
+          {tab === 'assemblies' && (
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <AssemblyListPanel records={records} onSelectAssembly={onSelectAssembly} />
+            </div>
+          )}
+
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: tab === 'assemblies' ? 'none' : 'block' }}>
             {/* ── Properties ── */}
             {tab === 'properties' && !selectedMarker && !selectedPath && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 200, color: '#9CA3AF', gap: 8, padding: 24 }}>
@@ -2049,11 +2099,14 @@ function RightInspector({
                   <label style={{ fontSize: 10, color: '#6B7280', display: 'block', marginBottom: 4 }}>Notes</label>
                   <textarea rows={2} placeholder="Add notes…" style={{ width: '100%', border: '1px solid #E5E7EB', borderRadius: 4, padding: '5px 8px', fontSize: 11, color: '#374151', resize: 'none', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
+                {/* "View assembly" used to sit here as a second copy of Change
+                    assembly. The Assembly List it should have opened now lives in
+                    the inspector header, where it is reachable without selecting
+                    anything first. */}
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button onClick={onChangeAssembly} style={{ flex: 1, height: 30, border: '1px solid #D1D5DB', borderRadius: 5, background: 'white', cursor: 'pointer', fontSize: 11, color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                     <Package size={11} /> Change assembly
                   </button>
-                  <button onClick={onChangeAssembly} style={{ flex: 1, height: 30, border: '1px solid #BFDBFE', borderRadius: 5, background: '#EFF6FF', cursor: 'pointer', fontSize: 11, color: '#2563EB' }}>View assembly</button>
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#6B7280', cursor: 'pointer' }}>
                   <input type="checkbox" style={{ width: 12, height: 12, cursor: 'pointer' }} />
@@ -2117,8 +2170,8 @@ function RightInspector({
               </div>
             )}
 
-            {/* ── Assembly ── */}
-            {tab === 'assembly' && (
+            {/* ── Parts (the selected item's assembly parts) ── */}
+            {tab === 'parts' && (
               <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {selectedMarker || selectedPath ? (
                   <>
@@ -2441,7 +2494,7 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
   const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
   const [activePageIdx, setActivePageIdx] = useState(0);
   const [leftTab, setLeftTab] = useState<LeftTab>('pages');
-  const [rightTab, setRightTab] = useState<'properties' | 'assembly' | 'pricing' | 'ai-review'>('properties');
+  const [rightTab, setRightTab] = useState<'properties' | 'assemblies' | 'parts' | 'pricing' | 'ai-review'>('properties');
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [showSymbols, setShowSymbols] = useState(true);
   const [dimBackground, setDimBackground] = useState(false);
@@ -2492,7 +2545,7 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
    *
    * Held here because three things need it: the assemblies list highlights it, the
    * toolbar arms its measurement tool, and the canvas stamps it onto every marker
-   * placed. `onArmTool` is the §19 behaviour — activating an assembly selects the
+   * placed. `onArmTool` is the §19 behavior — activating an assembly selects the
    * tool its measurement type implies, and the estimator can still override.
    */
   const [activeAsm, setActiveAsm] = useState<SidebarAssembly>(SIDEBAR_ASSEMBLIES[0]);
@@ -2536,6 +2589,28 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
   const [takeoffListHeight, setTakeoffListHeight] = useState(232);
   /** Record ids selected in the list, kept in step with the canvas selection. */
   const [listSelection, setListSelection] = useState<string[]>([]);
+
+  /**
+   * Picking an assembly in the Assembly List selects its records below.
+   *
+   * The list answers "how many so far"; the follow-up question is always "which
+   * ones", and that is the Takeoff List's job — so this focuses those rows rather
+   * than opening a third view of the same records.
+   */
+  function focusAssemblyRecords(name: string) {
+    handleListSelection(records.filter((r) => r.name === name).map((r) => r.id));
+  }
+
+  /**
+   * A manual add waiting on a quantity.
+   *
+   * Nothing is written until the estimator confirms — adding fifty of something
+   * should be one interaction, and silently adding one and making them find the
+   * quantity cell afterwards is the behavior this replaces.
+   */
+  const [pendingAdd, setPendingAdd] = useState<
+    { target: QuantityPromptTarget; commit: (qty: number) => void } | null
+  >(null);
 
   const activePageObj = pages[activePageIdx];
 
@@ -2801,20 +2876,30 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
       return;
     }
 
-    addRecord({
-      sourceType: 'manual',
-      assemblyId: asm?.id,
-      partId: part?.id,
-      name,
-      code,
-      unit: measure === 'linear' ? 'LF' : (part?.unit ?? 'EA'),
-      measurementType: measure,
-      quantity: 1,
-      measuredLength: measure === 'linear' ? 0 : undefined,
-      classification: { ...activeCls },
-    });
-    toast.success('Added to takeoff', {
-      description: `${name} — set the quantity in the row below.`,
+    /*
+     * Ask first. A drag into the list is a manual add, and a manual add is a
+     * quantity — defaulting to one and making the estimator go and fix it is the
+     * behavior this prompt exists to remove.
+     */
+    setPendingAdd({
+      target: { name, code, measurementType: measure, unit: measure === 'linear' ? 'LF' : (part?.unit ?? 'EA') },
+      commit: (qty) => {
+        addRecord({
+          sourceType: 'manual',
+          assemblyId: asm?.id,
+          partId: part?.id,
+          name,
+          code,
+          unit: measure === 'linear' ? 'LF' : (part?.unit ?? 'EA'),
+          measurementType: measure,
+          quantity: measure === 'linear' ? 1 : qty,
+          measuredLength: measure === 'linear' ? qty : undefined,
+          classification: { ...activeCls },
+        });
+        toast.success('Added to takeoff', {
+          description: `${name} × ${qty} · ${classificationLabel(groups, activeCls)}`,
+        });
+      },
     });
   }
 
@@ -2968,13 +3053,13 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
     const dx = linearInProgress[linearInProgress.length - 1].x - linearInProgress[0].x;
     const dy = linearInProgress[linearInProgress.length - 1].y - linearInProgress[0].y;
     const pixels = Math.sqrt(dx * dx + dy * dy);
-    const metres = (pixels * 54) / 1080;
+    const meters = (pixels * 54) / 1080;
     const newPath: LinearPath = {
       id: `lp${Date.now()}`,
       points: [...linearInProgress],
       assembly: activeAsm.name,
       color: COLOR_FOR_CAT[activeAsm.cat] ?? '#D97706',
-      totalLength: Math.round(metres * 10) / 10,
+      totalLength: Math.round(meters * 10) / 10,
       selected: false,
       cls: inheritCls(),
       clsOverridden: false,
@@ -3156,6 +3241,7 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
                 description: `${name} × ${qty} · ${classificationLabel(groups, activeCls)} — in the Takeoff List below.`,
               });
             }}
+            askQuantity={(target, commit) => setPendingAdd({ target, commit })}
           />
         </div>
       ) : (
@@ -3394,7 +3480,7 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
               <div onClick={() => setContextMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 200 }} />
               <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 201, backgroundColor: 'white', border: '1px solid #E5E7EB', borderRadius: 7, boxShadow: '0 4px 16px rgba(0,0,0,0.14)', minWidth: 190, overflow: 'hidden' }}>
                 {[
-                  { label: 'Preview BOM', action: () => { setRightTab('assembly'); setContextMenu(null); } },
+                  { label: 'Preview BOM', action: () => { setRightTab('parts'); setContextMenu(null); } },
                   { label: 'Replace assembly', action: () => { setShowAssemblyPanel(true); setContextMenu(null); } },
                   { label: 'Isolate symbol', action: () => { setDimBackground(true); setContextMenu(null); toast.info('Background dimmed — other symbols hidden.'); } },
                   { label: 'Continue counting', action: () => { setActiveTool('count'); setContextMenu(null); } },
@@ -3446,6 +3532,8 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
           markers={markers}
           onMarkerUpdate={(id, patch) => setMarkers(ms => ms.map(m => m.id === id ? { ...m, ...patch } : m))}
           onChangeAssembly={() => setShowAssemblyPanel(true)}
+          records={records}
+          onSelectAssembly={focusAssemblyRecords}
           groups={groups}
           pageDefault={activePageObj ? (pageDefaults[activePageObj.id] ?? null) : null}
           onClsChange={(next, overridden) => {
@@ -3630,6 +3718,8 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
             markers={markers}
             onMarkerUpdate={(id, patch) => setMarkers(ms => ms.map(m => m.id === id ? { ...m, ...patch } : m))}
             onChangeAssembly={() => setShowAssemblyPanel(true)}
+            records={records}
+            onSelectAssembly={focusAssemblyRecords}
             groups={groups}
             pageDefault={activePageObj ? (pageDefaults[activePageObj.id] ?? null) : null}
             onClsChange={(next, overridden) => {
@@ -3654,6 +3744,15 @@ export function TakeoffWorkspace({ onExit }: TakeoffWorkspaceProps) {
             }}
           />
         </FloatingFrame>
+      )}
+
+      {/* Quantity prompt for a manual add. Nothing is written until it confirms. */}
+      {pendingAdd && (
+        <QuantityPrompt
+          target={pendingAdd.target}
+          onCancel={() => setPendingAdd(null)}
+          onConfirm={(qty) => { pendingAdd.commit(qty); setPendingAdd(null); }}
+        />
       )}
 
       {/* Demo state switcher */}

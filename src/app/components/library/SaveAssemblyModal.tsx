@@ -17,7 +17,7 @@ function nextSaveSeq(): string {
  * Save Assembly — the one dialog that files an assembly.
  *
  * Lifted out of the Column browser so the full-screen builder saves through the
- * same flow rather than growing a second one. Behaviour is unchanged: name,
+ * same flow rather than growing a second one. Behavior is unchanged: name,
  * destination library, category, subcategory and type, with the branch on
  * screen pre-filled.
  */

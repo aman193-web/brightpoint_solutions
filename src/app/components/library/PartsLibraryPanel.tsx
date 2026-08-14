@@ -5,10 +5,10 @@ import {
 } from './libraryData';
 import { ContextId, partAllowed, partInAssemblyCategory } from './libraryFilters';
 
-type RailSort = 'catalogue' | 'recent' | 'az' | 'za';
+type RailSort = 'catalog' | 'recent' | 'az' | 'za';
 
 const RAIL_SORTS: { id: RailSort; label: string }[] = [
-  { id: 'catalogue', label: 'Catalogue order' },
+  { id: 'catalog', label: 'Catalog order' },
   { id: 'recent',    label: 'Recently added' },
   { id: 'az',        label: 'Name A–Z' },
   { id: 'za',        label: 'Name Z–A' },
@@ -19,7 +19,7 @@ const RAIL_SORTS: { id: RailSort; label: string }[] = [
  *
  * Build Mode narrows the estimator to the parts a configuration implies, but
  * "implies" is not "covers" — a job always has the one bracket the rules did
- * not predict. This is the escape hatch: the same catalogue, the same drag
+ * not predict. This is the escape hatch: the same catalog, the same drag
  * protocol, dropped straight onto the Live BOM.
  *
  * Browse's own parts band is a three-column cascade because it has the width
@@ -60,7 +60,7 @@ export function PartsLibraryPanel({
   const [dragging, setDragging] = useState<string | null>(null);
   const [cat, setCat] = useState<string>(followCategory ?? '');
   const [respectFilters, setRespectFilters] = useState(true);
-  const [sort, setSort] = useState<RailSort>('catalogue');
+  const [sort, setSort] = useState<RailSort>('catalog');
 
   /*
    * Follow the builder's category whenever it changes.
@@ -157,7 +157,7 @@ export function PartsLibraryPanel({
             value={sort}
             onChange={(e) => setSort(e.target.value as RailSort)}
             aria-label="Sort parts"
-            style={{ width: '100%', height: 28, padding: '0 24px 0 8px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 11, background: 'white', outline: 'none', color: sort === 'catalogue' ? '#6B7280' : '#1D4ED8', appearance: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', height: 28, padding: '0 24px 0 8px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 11, background: 'white', outline: 'none', color: sort === 'catalog' ? '#6B7280' : '#1D4ED8', appearance: 'none', boxSizing: 'border-box' }}
           >
             {RAIL_SORTS.map((s) => <option key={s.id} value={s.id}>Sort: {s.label}</option>)}
           </select>
