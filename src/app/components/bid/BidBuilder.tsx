@@ -1175,7 +1175,14 @@ function LaborCrewSection({ totalHours, rows, onRowsChange }: {
             {money(fringeInTotal)} fringe still in total
           </span>
         )}
-        <div style={{ flex: 1, minWidth: 8 }} />
+        {/*
+          One spacer, above the checkbox, not two.
+          ---------------------------------------
+          With a second spacer here the Fringe benefits toggle floated in the
+          middle of the bar, reading as if it belonged to the profile picker on the
+          left. It controls the table's columns, so it sits with the other
+          table-level control at the right end.
+        */}
 
         {/*
           Save as default.
