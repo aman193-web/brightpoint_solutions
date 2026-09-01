@@ -35,3 +35,12 @@ pnpm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Brand deliverables
+# ------------------
+# The guidelines PDF, the asset zip and the generator output are a client
+# hand-off, not source. They are ~11 MB of binaries between the two folders
+# (Deliverables/ mirrors brand/), so they are delivered separately and kept
+# out of the repo. brand/src/ regenerates all of it if it is ever needed.
+brand/
+Deliverables/
