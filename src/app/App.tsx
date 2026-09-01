@@ -236,22 +236,15 @@ export default function App() {
       />
 
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, overflow: "hidden" }}>
-        {showTopBar && (
-          <TopBar
-            crumbs={crumbs}
-            title={topBarTitle}
-            action={
-              (activePage === "dashboard" || activePage === "projects") ? (
-                <button
-                  onClick={handleNewProject}
-                  style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 14px", border: "none", borderRadius: 6, backgroundColor: "#2563EB", cursor: "pointer", fontSize: 13, fontWeight: 500, color: "white" }}
-                >
-                  + New project
-                </button>
-              ) : null
-            }
-          />
-        )}
+        {/*
+          No action slot in the top bar.
+          ------------------------------
+          Dashboard and Projects each carry their own New project button beside
+          the content they belong to, so a third one in the global header was a
+          duplicate — and it put a primary action in the one strip that is
+          supposed to stay the same on every screen.
+        */}
+        {showTopBar && <TopBar crumbs={crumbs} title={topBarTitle} />}
 
         <main style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }}>
           {activePage === "dashboard" && (
